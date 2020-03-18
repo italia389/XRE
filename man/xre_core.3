@@ -1,0 +1,338 @@
+.ad l
+.TH XRE_CORE 3 2020-03-14 "Ver. 1.0.0" "XRE Library Documentation"
+.nh \" Turn off hyphenation.
+.SH NAME
+\fBregcomp\fR, \fBregexec\fR, \fBregerror\fR, \fBregfree\fR,
+\fBxregcomp\fR, \fBxregexec\fR, \fBxregerror\fR, \fBxregfree\fR,
+\fBxregncomp\fR, \fBxregwcomp\fR, \fBxregwncomp\fR,
+\fBxregnexec\fR, \fBxregwexec\fR, \fBxregwnexec\fR,
+\fBxreguexec\fR,
+\fBxregmsg\fR, \fBxreginfo\fR - extended regular expression (XRE) core routines
+.SH SYNOPSIS
+.B (POSIX-ERE-compliant APIs)
+.PP
+\fB#include "regex.h"\fR
+.HP 2
+\fBint regcomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, int \fIcflags\fB);\fR
+.HP 2
+\fBint regexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB, size_t \fInmatch\fB, regmatch_t \fIpmatch\fB[],
+int \fIeflags\fB);\fR
+.HP 2
+\fBsize_t regerror(int \fIerrcode\fB, const regex_t *\fIpreg\fB, char *\fIerrbuf\fB, size_t \fIerrbuf_size\fB);\fR
+.HP 2
+\fBvoid regfree(regex_t *\fIpreg\fB);\fR
+.PP
+.B (Non-portable XRE equivalents of POSIX-ERE-compliant APIs)
+.PP
+\fB#include "xre.h"\fR
+.HP 2
+\fBint xregcomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, int \fIcflags\fB);\fR
+.HP 2
+\fBint xregexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB, size_t \fInmatch\fB, regmatch_t \fIpmatch\fB[],
+int \fIeflags\fB);\fR
+.HP 2
+\fBsize_t xregerror(int \fIerrcode\fB, const regex_t *\fIpreg\fB, char *\fIerrbuf\fB, size_t \fIerrbuf_size\fB);\fR
+.HP 2
+\fBvoid xregfree(regex_t *\fIpreg\fB);\fR
+.PP
+.B (Non-portable extensions)
+.HP 2
+\fBint xregncomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, size_t \fIlen\fB, int \fIcflags\fB);\fR
+.HP 2
+\fBint xregwcomp(regex_t *\fIpreg\fB, const wchar_t *\fIwpat\fB, int \fIcflags\fB);\fR
+.HP 2
+\fBint xregwncomp(regex_t *\fIpreg\fB, const wchar_t *\fIwpat\fB, size_t \fIlen\fB, int \fIcflags\fB);\fR
+.HP 2
+\fBint xregnexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB, size_t \fIlen\fB, size_t \fInmatch\fB,
+regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
+.HP 2
+\fBint xregwexec(const regex_t *\fIpreg\fB, const wchar_t *\fIstring\fB, size_t \fInmatch\fB,
+regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
+.HP 2
+\fBint xregwnexec(const regex_t *\fIpreg\fB, const wchar_t *\fIstring\fB, size_t \fIlen\fB, size_t \fInmatch\fB,
+regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
+.HP 2
+\fBint xreguexec(const regex_t *\fIpreg\fB, const regusource_t *\fIstring\fB, \fBsize_t \fInmatch\fB,
+regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
+.HP 2
+\fBconst char *xregmsg(int \fIerrcode\fB);\fR
+.HP 2
+\fBint xreginfo(const regex_t *\fIpreg\fB);\fR
+.SH DESCRIPTION
+These routines process IEEE Std 1003.1-2017 (POSIX) extended regular expressions (EREs) with enhancements, as described in
+xre_format(7).  The preferred routines are those with names beginning with "x".  The ones beginning with "reg" are provided for
+compatibility with existing code and for POSIX compliance (see xre(3)); however, to take full advantage of the XRE library, the
+"xre.h" header and "x" versions of the functions should be used.
+.SS Overview
+The \fBxregcomp\fR() function compiles an ERE string pattern into an internal form.  The \fBxregexec\fR() function matches the
+internal form against a string and reports results.  \fBxregerror\fR() converts error codes from the compilation and execution
+functions to a message string.  \fBxregfree\fR() releases all dynamic memory associated with the internal form of an ERE.
+.PP
+The "regex.h" and "xre.h" headers include declarations of two structure types, \fIregex_t\fR and \fIregmatch_t\fR, the first for
+holding the compiled pattern, and the second for reporting matches.  They also declare a number of constants with names
+beginning with "REG_", which are used to provide options to the complilation and matching routines.
+.SS Compilation
+\fBxregcomp\fR() compiles the ERE pattern string, subject to the flags in \fIcflags\fR, and places the results in the
+\fIregex_t\fR structure pointed to by \fIpreg\fR.  The \fIcflags\fR argument is the bitwise OR of zero or more of the following
+flags:
+.IP REG_EXTENDED 16
+Compile modern ("extended") REs, rather than the obsolete ("basic") REs that are the default under strict
+POSIX compliance.  Extended REs are the default in XRE; hence, this flag is ignored (but still provided for
+compatibility).
+.IP REG_ICASE 16
+Compile for matching that ignores case.
+.IP REG_NOSUB 16
+Compile for matching that need only report success or failure, not what was matched.
+.IP REG_NEWLINE 16
+Compile for newline-sensitive matching.  By default, newline is a completely ordinary character with no special
+meaning in either EREs or strings.  With this flag, '.' and '[^' negated bracket expressions never match a
+newline, the '^' assertion matches the null string after any newline in the string in addition to its normal
+function, and the '$' assertion matches the null string before any newline in the string in addition to its
+normal function.
+.PP
+In addition to the flags above, the following non-POSIX flags may be used:
+.IP REG_ENHANCED 16
+Enable enhanced features in the ERE pattern string and additional execution flags.
+.IP REG_LITERAL 16
+Compile entire pattern in literal form; that is, with all characters considered ordinary.
+.IP REG_NOSPEC 16
+Synonym for REG_LITERAL.
+.IP REG_UNGREEDY 16
+Use non-greedy (minimal) repetitions by default instead of the normal greedy ones.
+.IP REG_MINIMAL 16
+Synonym for REG_UNGREEDY.
+.IP REG_ANY 16
+Alter compilation for newline-sensitive matching.  When this flag is set and the REG_NEWLINE flag is also set,
+compilation is changed so that '.' and '[^' negated bracket expressions match a newline, but matching of '^'
+and '$' assertions in proximity to a newline remains in effect.
+.IP REG_APPROX 16
+Enable approximate matching features in the ERE pattern string (see xre_format(7)).
+.IP REG_REVERSED 16
+Mark ERE as a reversed pattern to be used for backward matching (see xre_reverse(3)).  When this flag is set, the ERE pattern
+string may not contain back references or position-dependent inline options of form '(?\fIo...\fR)' or '(?-\fIo...\fR)', all of
+which are incompatible with backward matching.  (Inline options in a non-capturing '(?:' subexpression are permitted, however.)
+This flag affects the behavior of the '^', '$', '\\<', and '\\>' assertions at execution time.
+.IP REG_RIGHTASSOC 16
+Make concatenation right associative during compilation.
+.PP
+When successful, \fBxregcomp\fR() fills in the structure pointed to by \fIpreg\fR and returns zero.  The
+\fIre_nsub\fR member of that
+structure, of type \fIsize_t\fR, contains the number of parenthesized subexpressions within the ERE (except that the value of
+this member is undefined if the REG_NOSUB flag was specified).  If \fBxregcomp\fR() fails, it returns a non-zero error code
+(which may be REG_BADPAT or one of the error codes that more precisely describes the error; see \fBDIAGNOSTICS\fR).
+.SS Execution
+The \fBxregexec\fR() function matches the compiled ERE pointed to by \fIpreg\fR against the \fIstring\fR, subject to the flags in
+\fIeflags\fR, and reports results using \fInmatch\fR, \fIpmatch\fR, and the returned value.  The ERE must have been compiled by a
+previous call to \fBxregcomp\fR().  If \fBxregexec\fR() finds a match, it returns zero; otherwise, it returns non-zero
+indicating either no match or an error; see \fBDIAGNOSTICS\fR.  The compiled form is not altered during execution, so a single
+compiled ERE can be used simultaneously by multiple threads or can be matched against multiple strings.
+.PP
+The \fIeflags\fR argument is the bitwise OR of zero or more of the following flags:
+.IP REG_NOTBOL 16
+The first character of the string is not the beginning of a line, therefore the '^' assertion should not match
+immediately before it.  If the REG_REVERSED flag was specified when the ERE was compiled (and therefore the
+string is being scanned backward from the end to the beginning), the first character of the string is assumed to
+be where the scanning ends.  The REG_NOTBOL flag does not affect how the '^' assertion matches in proximity to
+newlines when the REG_NEWLINE flag is set.
+.IP REG_NOTEOL 16
+The last character of the string is not the end of a line, therefore the '$' assertion should not match
+immediately after it.  If the REG_REVERSED flag was specified when the ERE was compiled (and therefore the
+string is being scanned backward from the end to the beginning), the last character of the string is assumed to
+be where the scanning starts.  The REG_NOTEOL flag does not affect how the '$' assertion matches in proximity to
+newlines when the REG_NEWLINE flag is set.
+.PP
+In addition to the flags above, the following non-POSIX flags may be used if the REG_ENHANCED flag was specified when the ERE
+was compiled:
+.IP REG_WORDCHBOS 16
+The first character of the string is not the beginning of the string and a word character exists immediately
+before it, therefore the '\\<', '\\>', '\\b', and '\\B' assertions should match accordingly.  If the REG_REVERSED
+flag was specified when the ERE was compiled (and therefore the string is being scanned backward from the end to
+the beginning), the first character of the string is assumed to be where the scanning ends.
+.IP REG_WORDCHEOS 16
+The last character of the string is not the end of the string and a word character exists immediately after it,
+therefore the '\\<', '\\>', '\\b', and '\\B' assertions should match accordingly.  If the REG_REVERSED flag was
+specified when the ERE was compiled (and therefore the string is being scanned backward from the end to the
+beginning), the last character of the string is assumed to be where the scanning starts.
+.IP REG_BESTMATCH 16
+If the REG_APPROX flag was specified when the ERE was compiled and the ERE contained approximate matching features, the best
+possible match in the entire string will be reported (which is not necessarily the first).  See xre_approx(3).
+.PP
+If the REG_NOSUB compilation flag was specified, or if \fInmatch\fR is zero, \fBxregexec\fR() ignores the \fIpmatch\fR argument.
+Otherwise, \fIpmatch\fR points to an array of \fInmatch\fR structures of type \fIregmatch_t\fR.  Such a structure has at least
+the members \fIrm_so\fR and \fIrm_eo\fR, both of type \fIregoff_t\fR (a signed arithmetic type), containing respectively the
+offset of the first character of a substring and the offset of the first character after the end of the substring.  Offsets are
+measured from the beginning of the \fIstring\fR argument given to the \fBxregexec\fR() function.  An empty substring is denoted
+by equal offsets, both indicating the character following the empty substring.
+.PP
+The 0th member of the \fIpmatch\fR array is filled in to indicate what substring of string was matched by the entire ERE.
+Remaining members report what substring was matched by parenthesized subexpressions within the ERE; member \fIi\fR reports
+subexpression \fIi\fR, with subexpressions counted (starting at 1) by the order of their opening parenthesis in the ERE, left to
+right.  Unused entries in the \fIpmatch\fR array (corresponding either to subexpressions that did not participate in the match
+at all, or to subexpressions that do not exist in the ERE; that is, \fIi\fR > \fIpreg\fR->\fIre_nsub\fR) are indicated by -1 in
+both \fIrm_so\fR and \fIrm_eo\fR.  If a subexpression participated in the match several times, the reported substring is the
+last one it matched.  If there are more than \fInmatch\fR subexpressions in the ERE (the ERE itself counts as a subexpression),
+then the \fBxregexec\fR() function records only the first \fInmatch\fR substrings.  Hence, if the \fIpmatch\fR array contained
+at least one element and \fInmatch\fR was 1 for example, offsets for the first subexpression (the entire ERE) would be recorded,
+but the locations in the string of all other subexpressions in the ERE, if any, would not be reported.  (Consequently, in order
+to capture the offsets of all subexpressions in the ERE, \fInmatch\fR should be equal to \fIpreg\fR->\fIre_nsub\fR + 1, and the
+\fIpmatch\fR array should contain at least that number of elements.)
+.PP
+The \fBxregerror\fR() function maps an error code to a human-readable message string.  This code is normally a non-zero value
+from either \fBxregcomp\fR() or \fBxregexec\fR(), but in actuality could be any valid error code (see \fBDIAGNOSTICS\fR).  The
+function places the null-terminated message into the buffer pointed to by \fIerrbuf\fR, limiting the length (including the null
+byte) to at most \fIerrbuf_size\fR bytes.  If the whole message will not fit, as much of it as will fit before the terminating
+null is supplied.  In any case, the returned value is the size of buffer needed to hold the whole message, including the
+terminating null.  If \fIerrbuf_size\fR is zero, \fIerrbuf\fR is ignored but the return value is still correct.
+.PP
+Under POSIX, if \fIpreg\fR is non-NULL, the \fIerrcode\fR argument should be the last non-zero value returned by
+\fBxregcomp\fR() or \fBxregexec\fR() with the given value of \fIpreg\fR, allowing the message to be as detailed as possible.  If
+\fIerrcode\fR is not such a value, the content of the generated string is unspecified.  If \fIpreg\fR is NULL, but \fIerrcode\fR
+is a value returned by a previous call to \fBxregexec\fR() or \fBxregcomp\fR(), the corresponding error string is still
+generated, but it might not be as detailed.  This behavior is implementation defined, and under XRE, does not apply.  All
+generated messages from xregerror() are detailed and any valid error code may be specified (the \fIpreg\fR argument is ignored).
+.PP
+The \fBxregfree\fR() function frees any dynamically-allocated memory associated with the compiled ERE pointed to by \fIpreg\fR.
+The remaining \fIregex_t\fR is no longer a valid compiled ERE and the effect of supplying it to \fBxregexec\fR() or
+\fBxregerror\fR() is undefined.
+.SH EXTENDED APIS
+The XRE library provides extended APIs for compilation and execution of EREs, as well as other purposes.  Note that any of the
+\fBxregcomp\fR() variants may be used to initialize a \fIregex_t\fR structure, that can then be passed to any of the
+\fBxregexec\fR() variants.  So it is quite legal for example, to compile a wide character ERE and use it to match a multibyte
+character string, or vice versa.
+.PP
+The \fBxregncomp\fR() routine compiles regular expressions like \fBxregcomp\fR(), but the length of the regular expression
+string is specified, allowing a string that is not null terminated and/or contains null characters.  Similarly, the
+\fBxregnexec\fR() routine is like \fBxregexec\fR(), but the length of the string to match is specified, allowing a string that
+is not null terminated and/or contains null characters.
+.PP
+The \fBxregwcomp\fR() and \fBxregwexec\fR() variants take a wide-character (\fIwchar_t\fR) string for the regular expression and
+string to match.  And \fBxregwncomp\fR() and \fBxregwnexec\fR() are variants that allow specifying the wide character string
+length, and so allow wide character strings that are not null terminated and/or contains null characters.
+.SS Arbitrary String Matching
+
+In addition to the extended APIs above, the XRE library provides a special routine, \fBxreguexec\fR(), which operates like
+\fBxregexec\fR() except that the string to match can be located in any user-defined data context.  The user data must contain a
+sequence of characters to be matched (not necessarily contiguous) which are supplied by the caller via a callback function.
+This function and other callback functions are specified in the \fIregusource_t\fR structure pointed to by the \fIstring\fR
+argument.  The structure is defined as follows:
+.sp
+.RS 5
+#include <stdbool.h>
+.sp
+.PD 0
+typedef struct {
+.RS 5
+.HP 2
+bool (*nextchar)(xcint_t *pc, unsigned int *plen, void *context);
+.HP 2
+void (*rewind)(size_t pos, void *context);
+.HP 2
+int (*compare)(size_t pos1, size_t pos2, size_t len, void *context);
+.HP 2
+void *context;
+.HP 2
+} regusource_t;
+.PD
+.RE
+.RE
+.PP
+The structure is filled in by the caller and a pointer to it is passed as the \fIstring\fR argument to \fBxreguexec\fR().  The
+\fInextchar\fR member of the structure is a pointer to a callback function which returns the next character and its length from
+the input stream.  (A character's length is measured in input stream positions.)  If a character is retrieved successfully,
+\fI*pc\fR is set to the character, \fI*plen\fR is set to its length, and false is returned.  If EOF is reached, \fI*pc\fR
+is set to \fI(xcint_t)\fR -1 and true is returned (\fI*plen\fR is ignored).
+.PP
+The \fIrewind\fR and \fIcompare\fR function pointers are only used if the ERE contains back references and may be set to
+NULL if not needed.  The \fBrewind\fR() callback function resets the position in the input stream to offset \fIpos\fR from the
+beginning of the string, and the \fBcompare\fR() callback function compares two substrings at positions \fIpos1\fR and
+\fIpos2\fR of length \fIlen\fR and returns zero if they match, otherwise non-zero.
+.PP
+The \fIcontext\fR member of the structure is provided as a generic pointer to a user-defined structure that can be used to
+maintain state information about the input stream.  It is passed as the last argument to all three callback functions so
+that the state information can be shared and updated among them.  It can be set to NULL if it is not being used.
+.PP
+See the example program included in the XRE distribution for usage of \fBxreguexec\fR().
+.SS Pattern Attributes
+The \fBxreginfo\fR() routine returns information about the compiled ERE pointed to by \fIpreg\fR.  The ERE must have been compiled
+by a previous call to \fBxregcomp\fR() or one of its variants.  The returned integer is the bitwise OR of zero or more of the
+following flags:
+.sp
+.PD 0
+.RS 5
+.IP PatBackrefs 20
+The compiled ERE contains one or more back references.
+.IP PatApprox 20
+The compiled ERE contains approximate matching features.
+.RE
+.PD
+.SH DIAGNOSTICS
+Non-zero error codes from \fBxregcomp\fR(), \fBxregexec\fR(), and \fBxregrev\fR() (discussed in xre_reverse(3)) are as follows:
+.sp
+.PD 0
+.RS 5
+.IP REG_NOMATCH 18
+Match failed.
+.IP REG_BADPAT 18
+Invalid regular expression.
+.IP REG_ECOLLATE 18
+Unknown collating element.
+.IP REG_ECTYPE 18
+Unknown character class name.
+.IP REG_EESCAPE 18
+Trailing backslash invalid.
+.IP REG_ESUBREG 18
+Invalid back reference.
+.IP REG_EBRACK 18
+Brackets '[ ]' not balanced
+.IP REG_EPAREN 18
+Parentheses '( )' not balanced
+.IP REG_EBRACE 18
+Braces '{ }' not balanced
+.IP REG_BADBR 18
+Invalid repetition count(s) in '{ }'.
+.IP REG_ERANGE 18
+Invalid character range in '[ ]'.
+.IP REG_ESPACE 18
+Out of memory.
+.IP REG_BADRPT 18
+Invalid use of repetition operator.
+.IP REG_EMPTY 18
+Empty (sub)expression.
+.IP REG_EHEX 18
+Invalid hexadecimal value.
+.IP REG_STRCHAR 18
+Invalid multibyte character in string.
+.IP REG_PATCHAR 18
+Invalid multibyte character in pattern.
+.IP REG_EPARAM 18
+Invalid approximate matching parameter(s).
+.IP REG_EREGREV 18
+Unsupported element(s) in reversed pattern.
+.RE
+.PD
+.SH EXAMPLES
+The following function demonstrates the basics of how a pattern can be matched against a string:
+.nf
+.ta 5 10 25
+.sp
+#include "xre.h"
+.sp
+// Match given string against the enhanced regular expression in
+// pattern.  Return 1 for match, 0 for no match, and -1 for an error.
+int match(const char *string, char *pattern) {
+	int status;
+	regex_t re;
+.sp
+	if(xregcomp(&re, pattern, REG_ENHANCED | REG_NOSUB) != 0)
+		return -1;	// Error.
+	status = xregexec(&re, string, (size_t) 0, NULL, 0);
+	xregfree(&re);
+	if(status == 0)
+		return 1;	// Match.
+	if(status == REG_NOMATCH)
+		return 0;	// No match.
+	return -1;		// Error.
+	}
+.fi
+.SH SEE ALSO
+xre(3), xre_approx(3), xre_format(7), xre_info(3), xre_reverse(3)

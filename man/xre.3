@@ -1,0 +1,117 @@
+.ad l
+.TH XRE 3 2020-03-14 "Ver. 1.0.0" "XRE Library Documentation"
+.nh \" Turn off hyphenation.
+.SH NAME
+\fBXRE\fR - extended regular expression library
+.SH SYNOPSIS
+.B (POSIX-ERE-compliant APIs)
+.PP
+\fB#include "regex.h"\fR
+.PP
+.B (Non-portable XRE equivalent of POSIX-ERE-compliant APIs)
+.PP
+\fB#include "xre.h"\fR
+.SH DESCRIPTION
+The \fBXRE\fR library is a package of
+routines that process IEEE Std 1003.1-2017 (POSIX) regular expressions (REs) with enhancements, as described in
+xre_format(7).  The routines conform to the POSIX standard in every respect, except for the following:
+.RS 5
+.IP \fB\-\fR 2
+Basic Regular Expressions (BREs), which are obsolete, are not supported.
+.sp -1
+.IP \fB\-\fR 2
+Extended Regular Expressions (EREs), which are the modern replacement for BREs, are the default.
+.RE
+.PP
+The library's API consists of several functions.
+The preferred routines are those with names beginning with "x".  The ones beginning with "reg" are provided for
+compatibility with existing code and for POSIX compliance; however, to take full advantage of the XRE library, the "xre.h"
+header and "x" versions of the functions should be used.
+.SS Overview
+The core library routines compile an RE string pattern into an internal form, match the internal form against a string, and
+report results.  There are also routines which convert error codes from the compilation and execution functions to a message
+string, and a routine which releases all dynamic memory associated with the internal form of an RE.
+.PP
+The library contains numerous extensions to POSIX EREs, including an enhanced mode which greatly expands the regular
+expression syntax and
+matching capabilities (see re_format(7)).  Additionally, the library supports fixed length patterns and strings (which may
+contain null characters), wide and
+multibyte characters in patterns and strings, user-defined strings, approximate ("fuzzy") matching, and backward matching.
+Extensions are enabled by specifying flags at compilation time, using special syntax in the pattern, and/or calling the
+appropriate routine(s) for the desired feature(s).
+.PP
+Note that a program using functions in the XRE library must be linked with the -lxre option.
+.SS Routine Name Index
+The following table lists all XRE routines in alphabetical order and the names of their manual pages.
+.sp
+.PD 0
+.RS 5
+.IP "Routine Name" 18
+Manual Page
+.IP ------------- 18
+--------------
+.IP regcomp 18
+xre_core(3)
+.IP regerror 18
+xre_core(3)
+.IP regexec 18
+xre_core(3)
+.IP regfree 18
+xre_core(3)
+.IP xlibconf 18
+xre_info(3)
+.IP xlibvers 18
+xre_info(3)
+.IP xregaexec 18
+xre_approx(3)
+.IP xregainit 18
+xre_approx(3)
+.IP xreganexec 18
+xre_approx(3)
+.IP xregauexec 18
+xre_approx(3)
+.IP xregawexec 18
+xre_approx(3)
+.IP xregawnexec 18
+xre_approx(3)
+.IP xregcomp 18
+xre_core(3)
+.IP xregerror 18
+xre_core(3)
+.IP xregexec 18
+xre_core(3)
+.IP xregfree 18
+xre_core(3)
+.IP xreginfo 18
+xre_core(3)
+.IP xregmsg 18
+xre_core(3)
+.IP xregncomp 18
+xre_core(3)
+.IP xregnexec 18
+xre_core(3)
+.IP xregnrev 18
+xre_reverse(3)
+.IP xregrev 18
+xre_reverse(3)
+.IP xreguexec 18
+xre_core(3)
+.IP xregwcomp 18
+xre_core(3)
+.IP xregwexec 18
+xre_core(3)
+.IP xregwncomp 18
+xre_core(3)
+.IP xregwnexec 18
+xre_core(3)
+.IP xregwnrev 18
+xre_reverse(3)
+.IP xregwrev 18
+xre_reverse(3)
+.RE
+.PD
+.SH SEE ALSO
+xre_format(7)
+.PP
+Specific function names (like \fBxregcomp\fR), and
+pages listed above (whose names begin "xre_") for detailed routine descriptions.

@@ -1,0 +1,371 @@
+.ad l
+.TH XRE_FORMAT 7 2020-03-14 "Ver. 1.0.0" "XRE Library Documentation"
+.nh \" Turn off hyphenation.
+.SH NAME
+\fBxre_format\fR - POSIX 1003.1-2017 extended regular expressions for use with the XRE library
+.SH DESCRIPTION
+IEEE Std 1003.1-2017 (POSIX) regular expressions (REs) come in two forms: Basic Regular Expressions (BREs), and modern or
+Extended Regular Expressions (EREs).  BREs, which are obsolete, are not supported by the XRE library, and are not discussed
+here.  This page describes EREs, which are the default form in the library, as well as enhanced forms, which provide for several
+advanced features and capabilities.
+.SS Definitions
+An ERE is one or more non-empty \fIbranches\fR, separated by '|'.  It matches anything that one of the branches matches.
+.PP
+A branch is one or more \fIpieces\fR, concatenated.  It matches a match for the first, followed by a match for the second,
+and so on.
+.PP
+A piece is an \fIatom\fR, possibly followed by a single '*', '+', '?', or \fIbrace\fR \fIexpression\fR.  An atom followed by '*'
+matches a sequence of 0 or more matches of the atom.  An atom followed by '+' matches a sequence of 1 or more matches of the
+atom.  An atom followed by '?' matches a sequence of 0 or 1 matches of the atom.
+.PP
+A brace expression is '{', followed by a \fIbound\fR, followed by '}'.
+.PP
+A bound is an unsigned decimal integer, possibly followed by ',', possibly followed by another unsigned decimal integer.  The
+integers must lie between 0 and RE_DUP_MAX (255) inclusive, and if there are two of them, the first may not exceed the second.
+An atom followed by a brace expression containing a bound with one integer \fIi\fR and no comma matches a sequence of exactly
+\fIi\fR matches of the atom.  An atom followed by a brace expression containing a bound with one integer \fIi\fR and a comma
+matches a sequence of \fIi\fR or more matches of the atom.  An atom followed by a brace expression containing a bound with two
+integers \fIi\fR and \fIj\fR matches a sequence of \fIi\fR through \fIj\fR (inclusive) matches of the atom.
+.PP
+An atom is a regular expression enclosed in '()' (matching a match for the regular expression), an empty set of '()' (matching a
+null string), a \fIbracket\fR \fIexpression\fR (see below), '.' (matching any single character), '^' (matching the null string
+at the beginning of a string), '$' (matching the null string at the end of a string), a '\e' followed by one of the
+characters '^$.[]()|*+?{}\e' (matching that character taken as an ordinary character), a '\e' followed by any other character
+(matching that character taken as an ordinary character, as if the '\e' had not been present), or a single character with no
+other significance (matching that character).  It is illegal to end an ERE with '\e'.
+.PP
+A \fIbracket\fR \fIexpression\fR is a list of characters enclosed in '[]'.  It normally matches any single character from the
+list (but see below).  If the list begins with '^', it matches any single character (but see below) \fInot\fR from the rest of
+the list.  If two characters in the list are separated by '-', this is shorthand for the full \fIrange\fR of characters between
+those two (inclusive) in the collating sequence; e.g., '[0-9]' in ASCII matches any decimal digit.  It is illegal for two ranges
+to share an endpoint; e.g., 'a-c-e'.
+.PP
+To include a literal ']' in the list, make it the first character (following a possible '^').  To include a literal '-', make it
+the first or last character, or the second endpoint of a range.  To use a literal '-' as the first endpoint of a range, enclose
+it in '[.' and '.]' to make it a collating element (see below).  With the exception of these and some combinations beginning
+with '[' (see next paragraphs), all other special characters, including '\e', lose their special significance within a bracket
+expression.
+.PP
+Within a bracket expression, a collating element (a character, a multi-character sequence that collates as if it were a single
+character, or a collating-sequence name for either) enclosed in '[.' and '.]' stands for the sequence of characters of that
+collating element.  The sequence is a single element of the bracket expression's list.  A bracket expression containing a
+multi-character collating element can thus match more than one character; e.g., if the collating sequence includes a 'ch'
+collating element, then the ERE '[[.ch.]]*c' matches the first five characters of 'chchcc'.
+.PP
+Within a bracket expression, a collating element enclosed in '[=' and '=]' is an equivalence class, standing for the sequences
+of characters of all collating elements equivalent to that one, including itself.  (If there are no other equivalent collating
+elements, the treatment is as if the enclosing delimiters were '[.' and '.]'.)  For example, if 'x' and 'y' are the members of
+an equivalence class, then '[[=x=]]', '[[=y=]]', and '[xy]' are all synonymous.  An equivalence class may not be an endpoint of
+a range.
+.PP
+Within a bracket expression, the name of a \fIcharacter\fR \fIclass\fR enclosed in '[:' and ':]' stands for the list of all
+characters belonging to that class.  Standard character class names are:
+.nf
+.sp
+.PD 0
+.sp
+.RS 6
+.ta 10 20 30
+\fIalnum\fR	\fIcntrl\fR	\fIlower\fR	\fIspace\fR
+\fIalpha\fR	\fIdigit\fR	\fIprint\fR	\fIupper\fR
+\fIblank\fR	\fIgraph\fR	\fIpunct\fR	\fIxdigit\fR
+.RE
+.PD
+.fi
+.PP
+These stand for the character classes defined in ctype(3).  A locale may provide others.  A character class may not be used as
+an endpoint of a range.
+.PP
+A bracketed expression like '[[:class:]]' can be used to match a single character that belongs to a character class.  To match
+any character that does not belong to a specific class, the negation operator of bracket expressions may be
+used: '[^[:class:]]'.
+.SS General Matching Rules
+In the event that an ERE could match more than one substring of a given string,
+the ERE matches the one starting earliest in the string.  If the ERE could match more than one substring starting at that point,
+it matches the longest.  Subexpressions also match the longest possible substrings, subject to
+the constraint that the whole match be as long as possible, with subexpressions starting earlier in the ERE taking priority over
+ones starting later.  Note that higher-level subexpressions thus take priority over
+their lower-level component subexpressions.
+.PP
+Match lengths are measured in characters, not collating elements.  A null string is considered longer than no match at all.
+For example, 'bb*' matches the three middle characters of 'abbbc', and '(wee|week)(knights|nights)'
+matches all ten characters of 'weeknights'.  When '(.*).*' is matched against 'abc',
+the parenthesized subexpression matches all three characters, and when '(a*)*'
+is matched against 'bc', both the whole ERE and the parenthesized subexpression match the null string.
+.PP
+If case-insensitive matching is specified, the effect is much as if all case distinctions had vanished from the alphabet.  When
+an alphabetic that exists in multiple cases appears as an ordinary character outside a bracket expression, it is effectively
+transformed into a bracket expression containing both cases; e.g., 'x' becomes '[xX]'.
+When it appears inside a bracket expression, all case counterparts of it are added to the bracket expression,
+so that, for example, '[x]' becomes '[xX]' and '[^x]' becomes '[^xX]'.
+.PP
+No particular limit is imposed on the length of EREs.  Programs intended to be portable should not employ EREs longer than 256
+bytes, as an implementation can refuse to accept such EREs and remain POSIX-compliant.
+.SH ENHANCED FEATURES
+When the REG_ENHANCED flag is passed to the \fBxregcomp\fR() routine or one of its variants (see xre_core(3)), additional
+features are activated.  These additional features are almost always non-compliant with the POSIX standard, thus they should be
+used with care in situations which require portability.
+.PP
+Within a bracket expression, most characters lose their magic.  This also applies to the additional enhanced features, with the
+exception of literal sequences and some shortcuts (described below), which \fIare\fR recognized inside a bracket expression.
+.SS Back References
+A new type of atom, a back reference '\e' followed by a digit \fIn\fR from 1 through 9 becomes available.  A back reference
+matches the same sequence of characters matched by the \fIn\fRth parenthesized subexpression (numbering subexpressions by the
+positions of their opening parentheses, left to right), so that, for example, '([bc])\e1' matches 'bb' or 'cc' but not 'bc'.
+.SS Assertions
+In addition to '^' and '$' (the assertions that match the null string at the beginning and end of string, respectively),
+the following assertions become available:
+.IP \e< 6
+Matches the null string at the beginning of a word.
+.IP \e> 6
+Matches the null string at the end of a word.
+.IP \eb 6
+Matches the null string at a word boundary (either the beginning or end of a word).
+.IP \eB 6
+Matches the null string where there is no word boundary.  This is the opposite of '\eb'.
+.PP
+A word is defined as a sequence of word characters which is neither preceded nor followed by word characters.  A word character
+is an \fIalnum\fR character (as defined by ctype(3)) or an underscore.
+.SS Literal Sequences
+Literals are normally just ordinary characters that are matched directly.  Under enhanced mode, certain character sequences are
+converted to specific literals.  These can be used both inside and outside a bracket expression.  For example, the
+ERE '[\en\et\ ]' would match a single newline, tab, or space character.
+.IP \ee 6
+The "escape" character (ASCII code 27).
+.IP \ef 6
+The "form feed" character (ASCII code 12).
+.IP \en 6
+The "newline" character (ASCII code 10).
+.IP \er 6
+The "carriage return" character (ASCII code 13).
+.IP \et 6
+The "horizontal tab" character (ASCII code 9).
+.PP
+Literals can also be specified as hexadecimal values, using either of the following forms:
+.IP \e\fBx\fIx...\fR 12
+An arbitrary eight-bit value.  The \fIx...\fR sequence represents one or two hexadecimal digits.  (Note: if \fIx...\fR
+is less than two hexadecimal digits, and the character following this sequence 
+happens to be a hexadecimal digit, use the (following) brace form to avoid ambiguity.)
+.IP \e\fBx{\fIx...\fR} 12
+An arbitrary, up to 32-bit value.  The \fIx...\fR sequence is an arbitrary sequence of one or
+more hexadecimal digits that is long enough to represent the necessary value.
+.PP
+Lastly, literals can also be specified directly, using their wide character values.  Note that when matching a multibyte
+character string, the string's bytes are converted to wide character before comparing.  This means that a single literal wide
+character value may match more than one string byte, depending on the locale's wide character encoding.
+.SS Shortcuts
+The following shortcuts can be used to replace more complicated bracket expressions, and can be
+used outside a bracket expression.  Additionally, the ones that are lower-case
+letters (non-negated forms) can be used inside a bracket expression as well.  For example,
+the ERE '[\ed\el_]' would match a single digit, lower-case letter, or underscore.  The ERE '[\eS/]' however, is illegal.
+.IP \ea 6
+Matches an alphabetic character.  This is equivalent to '[[:alpha:]]'.
+.IP \eA 6
+Matches a non-alphabetic character.  This is equivalent to '[^[:alpha:]]'.
+.IP \ed 6
+Matches a digit character.  This is equivalent to '[[:digit:]]'.
+.IP \eD 6
+Matches a non-digit character.  This is equivalent to '[^[:digit:]]'.
+.IP \eh 6
+Matches a horizontal space character (space or tab).  This is equivalent to '[[:blank:]]'.
+.IP \eH 6
+Matches a non-horizontal space character (space or tab).  This is equivalent to '[^[:blank:]]'.
+.IP \el 6
+Matches a lower-case letter.  This is equivalent to '[[:lower:]]'.
+.IP \eL 6
+Matches a non-lower-case letter.  This is equivalent to '[^[:lower:]]'.
+.IP \eN 6
+Matches a non-newline character.  This is equivalent to '[^\en]'.
+.IP \es 6
+Matches a space character.  This is equivalent to '[[:space:]]'.
+.IP \eS 6
+Matches a non-space character.  This is equivalent to '[^[:space:]]'.
+.IP \eu 6
+Matches an upper-case letter.  This is equivalent to '[[:upper:]]'.
+.IP \eU 6
+Matches a non-upper-case letter.  This is equivalent to '[^[:upper:]]'.
+.IP \ew 6
+Matches a word character.  This is equivalent to '[[:alnum:]_]'.
+.IP \eW 6
+Matches a non-word character.  This is equivalent to '[^[:alnum:]_]'.
+.SS Inline Literal Mode
+A '\eQ' sequence causes literal ("quote") mode to be entered, while '\eE'
+ends literal mode and returns to normal regular expression processing.  This is similar to specifying the REG_NOSPEC
+(or REG_LITERAL) option to \fBxregcomp\fR(),
+except that rather than applying to the whole ERE pattern, it only applies to the portion between the '\eQ' and '\eE'.  Note
+that it is not possible to have a '\eE'
+in the middle of an inline literal range, as that would terminate literal mode prematurely.
+.SS Minimal Repetitions
+By default, the repetition operators, '*', '+', '?', and \fIbound\fR are \fIgreedy\fR; that is, they
+try to match as many times as possible.  In enhanced mode, appending a '?' to a repetition operator
+makes it minimal (or \fIungreedy\fR);
+it tries to match the fewest number of times (including zero times, as appropriate).
+.PP
+For example, against the string 'aaa', the ERE 'a*' would match the entire string, while 'a*?'
+would match the null string at the beginning of the string (matches zero times).  Likewise, against the
+string 'ababab', the ERE '.*b' would also match the entire string, while '.*?b'
+would only match the first two characters.
+.PP
+The \fBxregcomp\fR() flag REG_UNGREEDY (or REG_MINIMAL) will make the regular (greedy)
+repetition operators ungreedy by default.  Appending '?' makes them greedy again.
+.PP
+Note that the minimal repetitions feature is not currently supported in combination with approximate matching;
+see \fBAPPROXIMATE MATCHING\fR.
+.SS Non-capturing Parenthesized Subexpressions
+Normally, the match offsets to parenthesized subexpressions are recorded in the \fIpmatch\fR array (that is, when
+REG_NOSUB is not specified and \fInmatch\fR is large enough to encompass the parenthesized subexpression in question).
+In enhanced mode, if the first two characters following a left parenthesis are '?:',
+grouping of the remaining contents is done, but the corresponding offsets are not recorded in the \fIpmatch\fR
+array.  For example, against the string 'fubar', the ERE '(fu)(bar)'
+would have two subexpression matches in \fIpmatch\fR; the first for 'fu' and the second for 'bar'.  But
+with the ERE '(?:fu)(bar)', there would only be one subexpression match, that of 'bar'.  Furthermore,
+against the string 'fufubar', the ERE '(?:fu)*(bar)' would again match the entire string, but only 'bar'
+would be recorded in \fIpmatch\fR.
+.SS Inline Options
+Like the inline literal mode mentioned above, other options can be enabled and disabled for part of an
+ERE.  '(?\fIo...\fR)' will enable the options specified in \fIo...\fR (one or more options characters; see below),
+while '(?-\fIo...\fR)' will disable the specified options, and '(?\fIo1...\fR-\fIo2...\fR)' will enable the first set
+of options, and disable the second set.
+.PP
+Additionally, the inline options syntax can be combined with the non-capturing parenthesized subexpression
+syntax to limit the option scope to just that of the subexpression.  This is accomplished by specifying options
+between the '?' and ':' characters.  For example, '(?i:fu)bar' would match 'fu'
+case insensitively and 'bar' case sensitively.
+.PP
+The available options are:
+.IP \fBA\fR 6
+Enable or disable approximate matching features in the ERE pattern.
+This option is equivalent to the REG_APPROX compilation flag.
+.IP \fBa\fR 6
+Enable or disable alternate special handling of the newline character.
+This option is equivalent to the REG_ANY flag.
+.IP \fBi\fR 6
+Enabling this option causes case to be ignored during matching, while disabling it will restore case-sensitive matching.
+This option is equivalent to the REG_ICASE compilation flag.
+.IP \fBn\fR 6
+Enable or disable special handling of the newline character.
+This option is equivalent to the REG_NEWLINE compilation flag.
+.IP \fBr\fR 6
+Enable or disable right associativity in the ERE pattern.
+This option is equivalent to the REG_RIGHTASSOC compilation flag.
+.IP \fBU\fR 6
+Enabling this option will make ungreedy repetitions the default, while disabling it will make greedy repetitions the
+default.  This option is equivalent to the REG_UNGREEDY (or REG_MINIMAL) compilation flag.
+.PP
+The scope of the option change begins immediately following the colon (if present) or right parenthesis (otherwise),
+but only to the end of the enclosing subexpression, if any.  Thus, for example, given the ERE '(fu(?i)bar)baz',
+the 'fu' portion matches case sensitively, 'bar' matches case insensitively, and 'baz'
+matches case sensitively again (since it is outside the scope of the
+subexpression in which the inline option was specified).  Likewise, 'fu(?i:bar)baz' will match in the same manner, however a
+subexpression match will not be recorded in the \fIpmatch\fR array, as in the previous example.
+.SS Inline Comments
+The syntax '(?#\fIcomment\fR)' can be used to embed comments within an ERE.  Note that \fIcomment\fR cannot
+contain a right parenthesis.  Also note that while syntactically, option characters can be added before
+the '#' character, they will be ignored.
+.SH APPROXIMATE MATCHING
+When the REG_APPROX flag is passed to the \fBxregcomp\fR() routine or one of its variants (see xre_core(3)),
+approximate matching features are activated.  These additional features are not compliant with the POSIX
+standard, thus they should be used with care in situations which require portability.
+.SS Definitions
+Within a brace expression, approximate matching parameters may be specified.  The definition of a brace expression is thus
+expanded to be '{', possibly followed by a \fIbound\fR, possibly followed by ';' and
+an \fIapproximation\fR \fIlimit\fR \fIexpression\fR, possibly followed by ';' and
+an \fIapproximation\fR \fIcost\fR \fIexpression\fR, always followed by '}'.  At least one of the three expressions must be
+specified between '{' and '}'.  If more than one is specified, they are separated by ';', and the latter two (approximation
+expressions) may be in either order.
+.PP
+An approximation limit expression is a sequence of one or more unique \fIlimits\fR.
+.PP
+A limit is one of '+' (maximum insertion count), '-' (maximum deletion count), '#' (maximum substitution count), or '~' (maximum
+number of edits), possibly followed by an unsigned decimal integer.  If no integer is given, the corresponding count is
+infinite.
+.PP
+An approximation cost expression is an equation of form '\fIn\fRi+\fIn\fRd+\fIn\fRs<=\fIc\fR', where \fIn\fR and \fIc\fR are
+unsigned decimal integers representing cost values.  '\fIn\fRi' is the cost of an insertion, '\fIn\fRd' is the cost of a
+deletion, '\fIn\fRs' is the cost of a substitution, and '<=\fIc\fR' is the total cost.  A minimum of one term or the
+total cost must be specified; e.g., '2s', '1d<=2', and '<=3' are all valid.
+.SS Matching Rules
+The approximate matching parameters which are in effect during the matching process
+are determined using the following rules:
+.sp
+.PD 0
+.RS 2
+.IP 1. 4
+All limit and cost parameters are initially set such that all atoms in an ERE match exactly; that is, all limit parameters are
+set to zero, all individual cost parameters are set to 1, and the maximum cost is set to zero.
+.IP 2. 4
+If any parameter is specified in either an approximation limit expression or approximation cost expression, then the
+following rules apply to the associated atom:
+.RS 6
+.IP a. 4
+If any individual edit or cost parameter was not set, it is set to 1.
+.IP b. 4
+If the "maximum number of edits" parameter '~' was not set, it is set to the maximum individual edit parameter.
+.IP c. 4
+If the "maximum cost" parameter '<=' was not set, it is set to infinity.
+.RE
+.RE
+.PD
+.PP
+For example, the ERE '(.*){+1#;2s+1i<=2}' explicitly allows a maximum of one insertion ('+1') and an infinite number of
+substitutions ('#') when attempting to match the subexpression against the string to be matched.  It also specifies that the
+cost of a substitution is 2 ('2s'), the cost of an insertion is 1 ('1i'), and the total edit cost cannot exceed 2 ('<=2').
+Because the maximum number of deletions '-' was not specified, it is set to 1.  And since the total number of edits allowed '~'
+was not specified, it is set to the maximum individual edit in effect, which is infinity.  Similarly, the cost of a
+deletion '\fIn\fRd' was not explicitly set, so it is set to 1.  Lastly, because the total cost '<=' was not specified, it is set
+to infinity.
+.PP
+Note that in order to disallow a certain type of edit, it must explicitly be set to zero; e.g., '+0'.  The limit and cost
+parameters are used in combination to determine if the subexpression can be matched against the string; see xre_approx(3) for
+details.
+.SS Notes
+As explained in \fBDefinitions\fR above,
+approximate matching parameters are specified between braces '{}' following an atom in the ERE, and apply
+only to that atom.  While the atom could be a single character (e.g., an ordinary character or a bracket expression), it is more
+common for the atom to be a subexpression enclosed in parentheses '()' so that the approximate matching parameters may apply to
+multiple characters in the string to be matched, and thereby allow for greater flexibility in the matching algorithm.
+.PP
+While it is possible to enclose an entire ERE in parentheses so that the parameters apply to the whole ERE, it is usually easier
+in this instance to use the \fBxregaexec\fR() function instead and store the approximate matching parameters in
+the \fIregaparams_t\fR structure that is passed to the function.  The idea here is to use approximate matching parameters in the
+pattern only when it is desirable to have them apply to specific portion(s) of it, not the pattern in its entirety.  However,
+both techniques may be used together to establish a default level of approximation for the whole pattern (via \fBxregaexec\fR())
+which then can be overridden by approximate matching parameters specified in the pattern.
+.PP
+When performing approximate matching, the closeness of a match is measured in terms of the number of insert, delete, and
+substitution operations necessary to convert the pattern into an exact match of the string to be
+matched.  This number is called the edit
+distance between the string and the pattern (or Levenshtein distance).  The edit distance is used with weighted costs for each
+operation to calculate the total cost of a match.  Matches whose total costs are under a certain threshold are deemed to be
+successful.
+.PP
+The edit distance is subject to the limit parameters which are currently in effect; that is, the maximum number of additions,
+deletions, and substitutions allowed, and the total number of edits allowed (which is the sum of the first three parameters).
+These limit values determine the degree of internal editing which can be done to the portion of the pattern that the parameters
+are approximating in order to match it to the string.  Each type of edit that is done incurs a cost, and the total cost of all
+edits may not exceed the total cost allowed.  If a certain edit or combination of edits is found whose cost does not exceed the
+total cost allowed, the match is successful.  Note that the approximate matching algorithm will always choose the match with the
+lowest cost if multiple matches are possible.
+.SS Examples
+Following are example brace expressions, illustrating how parameters are specified and their actual effect.
+.IP "{~}" 18
+Sets the maximum number of edits to unlimited.  However, the maximum number of insertions, deletions, and substitutions
+would all be one by default; therefore, the maximum number of edits would actually be three.
+.IP "{#2}" 18
+Sets the maximum number of substitutions to two.  Hence, the maximum number of edits would also be two, and the maximum number
+of insertions and deletions would each be one (the default).
+.IP "{+2~5-0}" 18
+Sets the maximum number of insertions to two, no deletions allowed, and the maximum number of edits to five.
+The maximum number of substitutions would then default to one.
+.IP "{#2;<=3}" 18
+Sets the maximum number of substitutions to two, and the maximum cost to three.  However, the maximum number of edits would be
+two also, so the maximum cost would effectively be two as well (because the costs of all edits default to one).
+.IP "{2i+1d+2s<=4;~}" 18
+Sets the cost of an insertion to two, a deletion to one, a substitution to two, and the maximum cost to four.  Also, sets the
+maximum number of edits to unlimited; however, the actual maximum would be three because the maximum individual edits default
+to one each.  Also, the number of edits is further constrained by the weighted costs with a total cost of four, which would
+prevent, for example, one insertion, one deletion, and one substitution (which adds up to five).
+.SH SEE ALSO
+xre(3), xre_approx(3), xre_core(3), xre_info(3), xre_reverse(3)
+.sp
+\fIRegular\fR \fIExpressions\fR IEEE Std 1003.1-2017, section 9

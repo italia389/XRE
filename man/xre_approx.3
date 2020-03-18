@@ -1,0 +1,170 @@
+.ad l
+.TH XRE_APPROX 3 2020-03-14 "Ver. 1.0.0" "XRE Library Documentation"
+.nh \" Turn off hyphenation.
+.SH NAME
+\fBxregaexec\fR, \fBxreganexec\fR, \fBxregawexec\fR, \fBxregawnexec\fR, \fBxregauexec\fR,
+\fBxregainit\fR - extended regular expression (XRE) approximate matching routines
+.SH SYNOPSIS
+\fB#include "xre.h"\fR
+.HP 2
+\fBint xregaexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB,
+\fBregamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+.HP 2
+\fBint xreganexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB, size_t \fIlen\fB,
+regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+.HP 2
+\fBint xregawexec(const regex_t *\fIpreg\fB, const wchar_t *\fIstring\fB,
+regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+.HP 2
+\fBint xregawnexec(const regex_t *\fIpreg\fB, const wchar_t *\fIstring\fB, size_t \fIlen\fB,
+regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+.HP 2
+\fBint xregauexec(const regex_t *\fIpreg\fB, const regusource_t *\fIstring\fB,
+regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+.HP 2
+\fBvoid xregainit(regaparams_t *\fIparams\fB, int \fIlevel\fB);\fR
+.SH DESCRIPTION
+These routines are an extension of the XRE library that implement approximate string matching.  This feature provides a means
+to find strings that are approximate matches of an extended regular expression (ERE).
+.SS Overview
+The approximate matching algorithm determines how close a string is to the pattern when deciding if a match is warranted.  The
+closeness of a match is measured in terms of the number of insert, delete, and substitution operations necessary to convert the
+pattern into an exact match.  This number is called the edit distance between the string and the pattern (or Levenshtein
+distance).  The edit distance is used with weighted costs for each operation to calculate the total cost of a match.  Matches
+whose total costs are under a certain threshold are deemed to be successful and are reported.
+.SS Execution
+Approximate matching is accomplished either by specifying special parameters in the pattern (see xre_format(7))
+and compiling it with the REG_APPROX
+flag as described in xre_core(3), or by using the \fBxregaexec\fR() routine (or both).  \fBxregaexec\fR() operates like
+\fBxregexec\fR(), except that it can perform approximate matching, and a few of the arguments are
+different.  The \fInmatch\fR and \fIpmatch\fR arguments are replaced by a \fImatch\fR argument, which is a pointer to a
+\fIregamatch_t\fR structure.  A \fIparams\fR argument is also specified, which is a pointer to a structure containing the
+approximate matching parameters.
+.PP
+The \fIregamatch_t\fR structure is defined as follows:
+.nf
+.sp
+.PD 0
+.RS 5
+typedef struct {
+.RS 5
+.ta 21
+size_t nmatch;		// Length of pmatch[] array.
+regmatch_t *pmatch;	// Submatch data.
+int cost;		// Cost of the match.
+int num_ins;		// Number of inserts in the match.
+int num_del;		// Number of deletes in the match.
+int num_subst;		// Number of substitutions in the match.
+} regamatch_t;
+.RE
+.RE
+.PD
+.fi
+.PP
+The \fInmatch\fR and \fIpmatch\fR members of the structure are filled in by the caller.  The remaining four integer members are
+the results of a successful match, and are returned by the function.
+.PP
+In addition to the match structure, approximate matching parameters must be specified.  These parameters apply to the entire
+ERE and are used as default parameters.  They can optionally be overridden in all or a portion of the ERE by specifying
+parameters directly in the pattern, as explained in xre_format(7).  The default parameters are specified in a \fIregaparams_t\fR
+structure, and a pointer to this structure is passed to \fBxregaexec\fR() via the \fIparams\fR argument.  The structure is
+defined as follows:
+.nf
+.sp
+.PD 0
+.sp
+.RS 5
+typedef struct {
+.RS 5
+.ta 18
+int cost_ins;		// Cost of an inserted character.
+int cost_del;		// Cost of a deleted character.
+int cost_subst;		// Cost of a substituted character.
+int max_cost;		// Maximum allowed cost of a match.
+int max_ins;		// Maximum allowed number of inserts.
+int max_del;		// Maximum allowed number of deletes.
+int max_subst;		// Maximum allowed number of substitutions.
+int max_edit;		// Maximum allowed number of edits.
+} regaparams_t;
+.RE
+.RE
+.PD
+.fi
+.PP
+This structure is typically filled in by calling the \fBxregainit\fR() function with a pointer to the structure and an
+additional integer argument which specifies one of three possible levels of approximation, or "fuzziness" to use in the
+matching algorithm.  For all three levels, the first three cost members are set to 1, which indicates that each edit
+operation has equal cost and equal weight.  The remaining members have different values for each level.
+.PP
+The level argument is zero or one of the following values:
+.IP REG_MODERATE 16
+Set default parameters to moderate approximation matching ("fuzzy" matching; see below).
+.IP REG_EXACT 16
+Set default parameters to exact matching.  All the "max" members are set to zero.
+.IP REG_MAXAPPROX 16
+Set default parameters to maximum approximation matching.  All the "max" members are set to "infinity" (INT_MAX).
+.PP
+The level may also be set to zero for the default (REG_MODERATE), which indicates a "moderate" amount of approximation.  In this
+case, \fImax_cost\fR is infinite, \fImax_ins\fR, \fImax_del\fR, and \fImax_subst\fR are 1, and \fImax_edit\fR is also 1.  These
+settings allow for one edit operation (an insertion, deletion, or substitution) for a match with no cost limit.  The members of
+the structure may also be set to any desired values manually, of course.  Use of \fBxregainit\fR() is optional.
+.PP
+The \fBxreganexec\fR() routine performs approximate matching like \fBxregaexec\fR(), but the length of the string is specified,
+allowing a string that is not null terminated and/or contains null characters.
+.PP
+The \fBxregawexec\fR() variant takes a wide-character (\fIwchar_t\fR) string for the string to match.  And the
+\fBxregawnexec\fR() variant accepts a wide character string length argument, and so allows wide character strings that are not
+null terminated and/or contains null characters.
+.PP
+Lastly, the \fBxregauexec\fR() routine operates like \fBxreguexec\fR(), as described in xre_core(3), except that it can perform
+approximate matching, and takes a combination of the arguments from \fBxreguexec\fR() and \fBxregaexec\fR().
+.SS Matching Algorithm
+When a string is being scanned for a match, the pattern is edited internally by the approximate matching engine according to
+what is allowed by the edit parameters so that a match may be found.  The number of edits to the pattern is constrained both by
+the maximum individual edits allowed and the total edits allowed.  If a match is found within these limits, the cost of the
+match is then determined.  The cost is calculated by multiplying the number of insertions, deletions, and substitutions
+performed by their associated costs and adding the values together.  For example, if one insertion and one substitution were
+needed for a potential match, and the costs for an insertion and substitution were 2 and 1 respectively, than the total cost
+would be 1 * 2 + 1 * 1 = 3.  If the calculated cost of the match is less than or equal to the maximum allowed cost, the match is
+considered successful.  However, all possible matches at each position are considered before scanning stops.  If multiple
+matches are found in the string at the same position, the one having the lowest cost is selected and reported.  Additionally, if
+the REG_BESTMATCH execution flag was specified, the entire string is scanned and the best possible match is reported instead,
+regardless of its position.  In this case, some earlier matches in the string will likely be skipped over; that is, the match
+that is reported is often not the first.  (For example, an exact match of the pattern that occurs near the end of the string
+will always take precedence over any approximate match that precedes it.)  Given this, the REG_BESTMATCH flag should be used
+with caution.
+.SH EXAMPLES
+The following function demonstrates the basics of how a pattern can be matched against a string using approximate
+or "fuzzy" matching.
+.nf
+.ta 5 10 25
+.sp
+#include "xre.h"
+.sp
+// Match given string against the enhanced regular expression in
+// pattern using a moderate level of approximation.  If match found,
+// set *match to result and return 1; otherwise, return 0 for
+// no match and -1 for an error.
+int amatch(const char *string, char *pattern, regmatch_t *match) {
+	int status;
+	regex_t re;
+	regaparams_t aparams;
+	regamatch_t amatch;
+.sp
+	if(xregcomp(&re, pattern,
+	 REG_ENHANCED | REG_NOSUB | REG_APPROX) != 0)
+		return -1;	// Error.
+	xregainit(&aparams, REG_MODERATE);
+	amatch.nmatch = 1;	// Group 0 only.
+	amatch.pmatch = match;
+	status = xregaexec(&re, string, &amatch, &aparams, 0);
+	xregfree(&re);
+	if(status == 0)
+		return 1;	// Match.
+	if(status == REG_NOMATCH)
+		return 0;	// No match.
+	return -1;		// Error.
+	}
+.fi
+.SH SEE ALSO
+xre(3), xre_core(3), xre_format(7), xre_info(3), xre_reverse(3)
