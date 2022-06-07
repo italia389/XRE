@@ -19,12 +19,13 @@ Installation
 Installation is very straightforward.  Change to the root of the source directory and do one of the following:
 
     On Linux:
-        $ sudo ./xre-1.0.0.sh
+        $ sudo ./xre-1.1.0.sh
 
     On macOS:
-        $ open xre-1.0.0.pkg
+        $ open xre-1.1.0.pkg
 
-This will install the XRE (static) library, C headers, and man pages into `/usr/local`.
+This will install two versions of the XRE (static) library, C headers, and man pages into `/usr/local`.  One of the installed
+libraries supports wide characters and multibyte characters (which is the default) and the other supports 8-bit characters only.
 
 Features
 ========
@@ -117,12 +118,12 @@ Questions and feature requests are welcomed as well.  You may also report a bug 
 
 Notes
 =====
-This distribution of the XRE library is version 1.0.0.  Installer packages containing 64-bit binaries are included for Linux
-platforms and macOS ver. 10.10 and later.  The sources can be compiled instead if desired; however, the build process has not
+This distribution of the XRE library is version 1.1.0.  Installer packages containing 64-bit binaries are included for Linux
+platforms and macOS ver. 10.12 and later.  The sources can be compiled instead if desired; however, the build process has not
 been tested on other Unix platforms and there may be some (hopefully minor) issues which will need to be resolved.  If you are
 compiling the sources and encounter any problems, please contact the author with the details.
 
 Credits
 =======
-The XRE library (c) Copyright 2020 Richard W. Marinelli is an extensively modified and enhanced derivative of TRE
+The XRE library (c) Copyright 2022 Richard W. Marinelli is an extensively modified and enhanced derivative of TRE
 ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and was created by Rick Marinelli <italian389@yahoo.com>.

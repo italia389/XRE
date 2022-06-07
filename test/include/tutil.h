@@ -4,4 +4,11 @@
 // "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
 //
 // Function declarations for XRE test programs.
-extern int fvizs(const char *str, size_t len, FILE *file, bool pass);
+
+#include <stdlib.h>
+#include "xre.h"
+
+extern int fvizstr(const char *str, size_t len, FILE *file, bool pass);
+extern void progHdr(const char *name, const char *version);
+extern char *trueFalse(bool val);
+extern void xconf(void);

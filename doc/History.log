@@ -1,6 +1,18 @@
 XRE Library RELEASE HISTORY
 
 ----------
+1.1.0	2 Jun 2022
+
+ 1. Fixed bug where pattern '[^[:blank:]]' (and shortcut '\H') matched a newline when REG_NEWLINE flag was set and REG_ANY was
+    not set.
+ 2. Fixed preprocessor issue where compiling with "#define EnableApprox 0" in xre.h header caused a compilation error.
+ 3. Renamed xlibvers() function to xrevers() to clarify that the function is returning version information for the XRE library.
+ 4. Changed txre.c test utility to print full version information and XRE library configuration information at startup so that
+    the complete testing environment is known.
+ 5. Created man pages for all XRE functions so that a relevant page can be found using a function name; for example,
+    "man xregcomp".  (This was an oversight in the previous release.)
+
+----------
 1.0.0	14 Mar 2020
 
 

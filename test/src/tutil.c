@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include "xre.h"
 
 // Return character c as a string, converting to visible form if non-text, as follows:
 //	<NL>	012	Newline.
@@ -48,7 +50,7 @@ static char *vizc(short c) {
 // Write 'str' to given file, exposing all 7-bit characters which are invisible.  If 'pass' is false, 8-bit characters are also
 // exposed; otherwise, they are passed through unchanged.  If 'len' is zero, 'str' is assumed to be null-terminated; otherwise,
 // exactly 'len' bytes are written.  Return EOF if error; otherwise, 0.
-int fvizs(const char *str, size_t len, FILE *file, bool pass) {
+int fvizstr(const char *str, size_t len, FILE *file, bool pass) {
 	const char *str1;
 	short c;
 	size_t n = (len == 0) ? strlen(str) : len;
@@ -63,4 +65,26 @@ int fvizs(const char *str, size_t len, FILE *file, bool pass) {
 			return EOF;
 		}
 	return 0;
+	}
+
+// Return Boolean value as a literal.
+char *trueFalse(bool val) {
+
+	return val ? "true" : "false";
+	}
+
+// Print XRE configuration.
+void xconf(void) {
+	int flags = xlibconf();
+
+	printf("WideChar: %s, Multibyte: %s, ApproxMatch: %s, Reverse: %s, MB_CUR_MAX: %lu\n",
+	 trueFalse(flags & ConfigWChar), trueFalse(flags & ConfigMultibyte),
+	 trueFalse(flags & ConfigApprox), trueFalse(flags & ConfigReverse), (size_t) MB_CUR_MAX);
+	}
+
+// Print program header.
+void progHdr(const char *name, const char *version) {
+
+	printf("%s %s -- Testing %s\n", name, version, xrevers());
+	xconf();
 	}

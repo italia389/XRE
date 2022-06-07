@@ -1,6 +1,6 @@
 // match.c - XRE parallel, back-reference, and approximate RE matching engines.
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -110,7 +110,7 @@ typedef struct {
 
 #define IsWordChar(c)  ((c) == L'_' || xisalnum(c))
 
-// Returns true if tag positions in 'tagpos1' take precedence over those in 'tagpos2'; otherwise, false.
+// Returns true if tag positions in 'tagpos1' take precedence over those in 'tagpos2', otherwise false.
 static bool betterTags(int num_tags, tag_direction_t *tag_directions, int *tagpos1, int *tagpos2) {
 	int i;
 
@@ -125,13 +125,13 @@ static bool betterTags(int num_tags, tag_direction_t *tag_directions, int *tagpo
 	}
 
 // Find active assertion (including a class or negated class list if ExecClassCheck flag set in eflags) and return true if it
-// fails to match at current position; otherwise, false.  Note that more than one positional assertion may be set, so all are
+// fails to match at current position, otherwise false.  Note that more than one positional assertion may be set, so all are
 // checked; that is, all must match or 'true' (failure) is returned.
 static bool assertfail(tnfa_transition_t *trans, scan_pos_t *spos, const tnfa_t *tnfa, int eflags) {
 	int assertions = trans->assertions;
 
 	// Check line assertions.
-	DPrint((stderr, "assertfail(%.4X,[%d,%d,%d],%.4X,%.4X) ", assertions, spos->pos, (int) spos->prev_c, (int) spos->next_c,
+	DPrintf((stderr, "assertfail(%.4X,[%d,%d,%d],%.4X,%.4X) ", assertions, spos->pos, (int) spos->prev_c, (int) spos->next_c,
 	 tnfa->cflags, eflags));
 	if(assertions & AssertAtBOL) {
 		if(tnfa->cflags & REG_REVERSED) {
@@ -317,7 +317,7 @@ int runParallel(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type
 	memset(&mbstate, '\0', sizeof(mbstate));
 #endif // UseMBState.
 
-	DPrint((stderr, "runParallel, input type %d\n", type));
+	DPrintf((stderr, "=====\nrunParallel, input type %d\n", type));
 
 	num_tags = (match_tagpos == NULL) ? 0 : tnfa->num_tags;
 
@@ -358,7 +358,7 @@ int runParallel(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type
 		if((str_byte = memchr(origStr, tnfa->first_char, (size_t) len)) == NULL)
 			goto Retn;	// Not found.
 
-		DPrint((stderr, "skipped %lu chars\n", (unsigned long)(str_byte - origStr)));
+		DPrintf((stderr, "skipped %lu chars\n", (unsigned long)(str_byte - origStr)));
 		if(str_byte > origStr)
 			spos.prev_c = (xcint_t) str_byte[-1];
 		spos.next_c = (xcint_t) *str_byte;
@@ -381,7 +381,7 @@ int runParallel(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type
 			++spos.pos;
 			}
 
-		DPrint((stderr, "skipped %d chars\n", spos.pos - origPos));
+		DPrintf((stderr, "skipped %d chars\n", spos.pos - origPos));
 		if(spos.pos == len)
 			goto Retn;	// No match.
 		}
@@ -389,30 +389,30 @@ int runParallel(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type
 		GetNextChar();
 		}
 
-	DPrint((stderr, "length: %ld\n", len));
-	DPrint((stderr, "===============+======================================\n"));
-	DPrint((stderr, "pos:chr/code   | reach state/tag:pos/...\n"));
-	DPrint((stderr, "---------------+--------------------------------------\n"));
+	DPrintf((stderr, "length: %ld\n", len));
+	DPrintf((stderr, "===============+======================================\n"));
+	DPrintf((stderr, "pos:chr/code   | reach state/tag:pos/...\n"));
+	DPrintf((stderr, "---------------+--------------------------------------\n"));
 
 	reach_nexti = reach_next;
 	for(;;) {
 		// If no match found yet, add the initial states to 'reach_next'.
 		if(match_eo < 0) {
-			DPrint((stderr, " INIT at spos %d\n", spos.pos));
+			DPrintf((stderr, " INIT at spos %d\n", spos.pos));
 			for(trans = tnfa->initial; trans->state != NULL; ++trans) {
-				DPrint((stderr, "    examining trans %p -> %p (rpos %d)",
+				DPrintf((stderr, "    examining trans %p -> %p (rpos %d)",
 				 (void *) trans, (void *) trans->state, reach_pos[trans->state_id].pos));
 				if(reach_pos[trans->state_id].pos < spos.pos) {
 					if(trans->assertions && assertfail(trans, &spos, tnfa, eflags)) {
-						DPrint((stderr, " > assertion failed.\n"));
+						DPrintf((stderr, " > assertion failed.\n"));
 						continue;
 						}
-					DPrint((stderr, " +\n"));
+					DPrintf((stderr, " +\n"));
 					reach_nexti->state = trans->state;
 					if(num_tags > 0)
 						settags(reach_nexti->tagpos, NULL, num_tags, trans, &spos);
 					if(reach_nexti->state == tnfa->final) {
-						DPrint((stderr, "  found empty match\n"));
+						DPrintf((stderr, "  found empty match\n"));
 						match_eo = spos.pos;
 						new_match = true;
 						intcpy(match_tagpos, reach_nexti->tagpos, num_tags);
@@ -426,7 +426,7 @@ int runParallel(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type
 					fputc('\n', stderr);
 #endif
 				}
-			DPrint((stderr, "\n"));
+			DPrintf((stderr, "\n"));
 			reach_nexti->state = NULL;
 			}
 		else if(num_tags == 0 || reach_nexti == reach_next)
@@ -457,19 +457,19 @@ int runParallel(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type
 		if(tnfa->num_minimals > 0 && new_match) {
 			int beginTag, endTag;
 
-			DPrint((stderr, "Have minimal tags and match found: weeding out non-minimal states\n"));
+			DPrintf((stderr, "Have minimal tags and match found: weeding out non-minimal states\n"));
 			new_match = false;
 			reach_nexti = reach_next;
 			for(reachi = reach; reachi->state != NULL; ++reachi) {
 				for(i = 0; tnfa->minimal_tags[i] >= 0; i += 2) {
 					endTag = tnfa->minimal_tags[i];
 					beginTag = tnfa->minimal_tags[i + 1];
-					DPrint((stderr, "  examining trans %p: minimal beginTag %d, endTag %d\n",
+					DPrintf((stderr, "  examining trans %p: minimal beginTag %d, endTag %d\n",
 					 (void *) reachi->state, beginTag, endTag));
 
 					// Does end tag exist?
 					if(endTag >= num_tags) {
-						DPrint((stderr, "  Throwing %p out because end t%d does not exist.\n",
+						DPrintf((stderr, "  Throwing %p out because end t%d does not exist.\n",
 						 reachi->state, endTag));
 						goto Onward;
 						}
@@ -478,7 +478,7 @@ int runParallel(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type
 					// match takes precedence.
 					if(reachi->tagpos[beginTag] == match_tagpos[beginTag] &&
 					 reachi->tagpos[endTag] < match_tagpos[endTag]) {
-						DPrint((stderr, "  Throwing %p out because end t%d pos %d < match_tagpos %d\n",
+						DPrintf((stderr, "  Throwing %p out because end t%d pos %d < match_tagpos %d\n",
 						 reachi->state, endTag, reachi->tagpos[endTag], match_tagpos[endTag]));
 						goto Onward;
 						}
@@ -507,7 +507,7 @@ Onward:;
 				// Does this transition match the input symbol?
 				if(trans->code_min <= (xcint_t) spos.prev_c && trans->code_max >= (xcint_t) spos.prev_c) {
 					if(trans->assertions && assertfail(trans, &spos, tnfa, eflags | ExecClassCheck)) {
-						DPrint((stderr, "assertion failed\n"));
+						DPrintf((stderr, "assertion failed\n"));
 						continue;
 						}
 
@@ -526,7 +526,7 @@ Onward:;
 
 						if(reach_nexti->state == tnfa->final && (match_eo == -1 || (num_tags > 0 &&
 						 reach_nexti->tagpos[0] <= match_tagpos[0]))) {
-							DPrint((stderr, "  found match %p\n", trans->state));
+							DPrintf((stderr, "  found match %p\n", trans->state));
 							match_eo = spos.pos;
 							new_match = true;
 							intcpy(match_tagpos, reach_nexti->tagpos, num_tags);
@@ -545,7 +545,7 @@ Onward:;
 							tmp_iptr = *reach_pos[trans->state_id].ptagpos;
 							*reach_pos[trans->state_id].ptagpos = tmp_tagpos;
 							if(trans->state == tnfa->final) {
-								DPrint((stderr, "  found better match\n"));
+								DPrintf((stderr, "  found better match\n"));
 								match_eo = spos.pos;
 								new_match = true;
 								intcpy(match_tagpos, tmp_tagpos, num_tags);
@@ -559,7 +559,7 @@ Onward:;
 		reach_nexti->state = NULL;
 		}
 
-	DPrint((stderr, "match end offset = %d\n", match_eo));
+	DPrintf((stderr, "match end offset = %d\n", match_eo));
 
 	*match_end_off = match_eo;
 Retn:
@@ -673,7 +673,7 @@ typedef struct backtrack {
 #define Min(a, b) ((a) <= (b) ? (a) : (b))
 
 #if 0
-// Comparison function that ignores case.  Return zero if a match; otherwise, non-zero.
+// Comparison function that ignores case.  Return zero if a match, otherwise non-zero.
 static int casecmp(const void *s1, const void *s2, int n, xstr_t type) {
 	const char *str1 = s1;
 	const char *str2 = s2;
@@ -741,8 +741,8 @@ int runBackref(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type,
 	stack->prev = NULL;
 	stack->next = NULL;
 
-	DPrint((stderr, "runBackref, input type %d\n", type));
-	DPrint((stderr, "len = %ld\n", len));
+	DPrintf((stderr, "=====\nrunBackref, input type %d\n", type));
+	DPrintf((stderr, "len = %ld\n", len));
 
 	if(tnfa->num_tags > 0) {
 		if((tagpos = malloc(sizeof(*tagpos) * tnfa->num_tags)) == NULL)
@@ -783,9 +783,9 @@ Retry:
 	// Handle initial states.
 	next_tags = NULL;
 	for(trans = tnfa->initial; trans->state != NULL; ++trans) {
-		DPrint((stderr, "> init %p, prev_c %c\n", trans->state, (int) spos.prev_c));
+		DPrintf((stderr, "> init %p, prev_c %c\n", trans->state, (int) spos.prev_c));
 		if(trans->assertions && assertfail(trans, &spos, tnfa, eflags)) {
-			DPrint((stderr, "assertion failed\n"));
+			DPrintf((stderr, "assertion failed\n"));
 			continue;
 			}
 		if(state == NULL) {
@@ -796,7 +796,7 @@ Retry:
 			}
 		else {
 			// Backtrack to this state.
-			DPrint((stderr, "saving state %d for backtracking\n", trans->state_id));
+			DPrintf((stderr, "saving state %d for backtracking\n", trans->state_id));
 			BTStackPush(spos.pos, str_byte, str_wide, trans->state, trans->state_id, spos.next_c, tagpos,
 			 mbstate);
 			{int *tmp = trans->tags;
@@ -811,9 +811,9 @@ Retry:
 		for(; *next_tags >= 0; ++next_tags)
 			tagpos[*next_tags] = spos.pos;
 
-	DPrint((stderr, "entering match loop, pos %d, str_byte %p\n", spos.pos, str_byte));
-	DPrint((stderr, "pos:chr/code | state and tags\n"));
-	DPrint((stderr, "-------------+------------------------------------------------\n"));
+	DPrintf((stderr, "entering match loop, pos %d, str_byte %p\n", spos.pos, str_byte));
+	DPrintf((stderr, "pos:chr/code | state and tags\n"));
+	DPrintf((stderr, "-------------+------------------------------------------------\n"));
 
 	if(state == NULL)
 		goto Backtrack;
@@ -822,14 +822,14 @@ Retry:
 		tnfa_transition_t *next_state;
 		int empty_br_match;
 
-		DPrint((stderr, "start loop\n"));
+		DPrintf((stderr, "start loop\n"));
 		if(state == tnfa->final) {
-			DPrint((stderr, "  match found, %d %d\n", match_eo, spos.pos));
+			DPrintf((stderr, "  match found, %d %d\n", match_eo, spos.pos));
 			if(match_eo < spos.pos || (match_eo == spos.pos && match_tagpos != NULL &&
 			 betterTags(tnfa->num_tags, tnfa->tag_directions, tagpos, match_tagpos))) {
 
 				// This match beats the previous match.
-				DPrint((stderr, "  win previous\n"));
+				DPrintf((stderr, "  win previous\n"));
 				match_eo = spos.pos;
 				if(match_tagpos != NULL)
 					intcpy(match_tagpos, tagpos, tnfa->num_tags);
@@ -855,7 +855,7 @@ Retry:
 			int so, eo, bt_len, result;
 			int bt = trans->u.backref;
 
-			DPrint((stderr, " should match back reference %d\n", bt));
+			DPrintf((stderr, " should match back reference %d\n", bt));
 
 			// Get the substring we need to match against.  Remember to turn off REG_NOSUB temporarily.
 			fillMatch(bt + 1, pmatch, tnfa->cflags & ~REG_NOSUB, tnfa, tagpos, spos.pos);
@@ -871,9 +871,9 @@ Retry:
 				}
 #if EnableWChar
 			else if(type == StrWide) {
-				DPrint((stderr, "  substring (len %d) is [%d, %d]: '%.*" StrF "'\n", bt_len, so, eo, bt_len,
+				DPrintf((stderr, "  substring (len %d) is [%d, %d]: '%.*" StrF "'\n", bt_len, so, eo, bt_len,
 				 (wchar_t *) string + so));
-				DPrint((stderr, "  current string is '%.*" StrF "'\n", slen, str_wide - 1));
+				DPrintf((stderr, "  current string is '%.*" StrF "'\n", slen, str_wide - 1));
 				}
 #endif
 			}
@@ -896,14 +896,14 @@ Retry:
 				if(bt_len == 0)
 					empty_br_match = 1;
 				if(empty_br_match && states_seen[trans->state_id]) {
-					DPrint((stderr, "  avoid loop\n"));
+					DPrintf((stderr, "  avoid loop\n"));
 					goto Backtrack;
 					}
 
 				states_seen[trans->state_id] = empty_br_match;
 
 				// Advance in input string and resync 'prev_c', 'next_c' and 'pos'.
-				DPrint((stderr, "  back reference matched\n"));
+				DPrintf((stderr, "  back reference matched\n"));
 				if(bt_len == 0) {
 					--str_byte;
 #if EnableWChar
@@ -915,10 +915,10 @@ Retry:
 				do {
 					GetNextChar();
 					} while(--bt_len > 0);
-				DPrint((stderr, "  pos now %d\n", spos.pos));
+				DPrintf((stderr, "  pos now %d\n", spos.pos));
 				}
 			else {
-				DPrint((stderr, "  back reference did not match\n"));
+				DPrintf((stderr, "  back reference did not match\n"));
 				goto Backtrack;
 				}
 			}
@@ -937,19 +937,19 @@ Retry:
 
 		next_state = NULL;
 		for(trans = state; trans->state != NULL; ++trans) {
-			DPrint((stderr, "  transition %d-%d (%c-%c) %d to %d\n",
+			DPrintf((stderr, "  transition %d-%d (%c-%c) %d to %d\n",
 			 trans->code_min, trans->code_max,
 			 trans->code_min, trans->code_max,
 			 trans->assertions, trans->state_id));
 			if(trans->code_min <= (xcint_t) spos.prev_c && trans->code_max >= (xcint_t) spos.prev_c) {
 				if(trans->assertions && assertfail(trans, &spos, tnfa, eflags | ExecClassCheck)) {
-					DPrint((stderr, "assertion failed\n"));
+					DPrintf((stderr, "assertion failed\n"));
 					continue;
 					}
 				if(next_state == NULL) {
 
 					// First matching transition.
-					DPrint((stderr, "  Next state is %d\n", trans->state_id));
+					DPrintf((stderr, "  Next state is %d\n", trans->state_id));
 					next_state = trans->state;
 					next_tags = trans->tags;
 					}
@@ -957,7 +957,7 @@ Retry:
 					// Second matching transition.  We may need to backtrack here to take this transition
 					// instead of the first one, so we push this transition in the backtracking stack so we
 					// can jump back here if needed.
-					DPrint((stderr, "  saving state %d for backtracking\n", trans->state_id));
+					DPrintf((stderr, "  saving state %d for backtracking\n", trans->state_id));
 					BTStackPush(spos.pos, str_byte, str_wide, trans->state, trans->state_id,
 					 spos.next_c, tagpos, mbstate);
 					for(int *tmp = trans->tags; tmp != NULL && *tmp >= 0; ++tmp)
@@ -984,9 +984,9 @@ Retry:
 Backtrack:
 			// A matching transition was not found.  Try to backtrack.
 			if(stack->prev) {
-				DPrint((stderr, "  backtracking\n"));
+				DPrintf((stderr, "  backtracking\n"));
 				if(stack->item.state->assertions & AssertBackref) {
-					DPrint((stderr, "  states_seen[%d] = 0\n", stack->item.state_id));
+					DPrintf((stderr, "  states_seen[%d] = 0\n", stack->item.state_id));
 					states_seen[stack->item.state_id] = 0;
 					}
 
@@ -1003,11 +1003,11 @@ Backtrack:
 					}
 				else if(spos.pos == len) {
 EOS:
-					DPrint((stderr, "end of string.\n"));
+					DPrintf((stderr, "end of string.\n"));
 					break;
 					}
 
-				DPrint((stderr, "restarting from next start position\n"));
+				DPrintf((stderr, "restarting from next start position\n"));
 				spos.next_c = next_c_start;
 #ifdef UseMBState
 				mbstate = mbstate_start;
@@ -1019,7 +1019,7 @@ EOS:
 				goto Retry;
 				}
 			else {
-				DPrint((stderr, "finished\n"));
+				DPrintf((stderr, "finished\n"));
 				break;
 				}
 			}
@@ -1196,8 +1196,9 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 #ifdef UseMBState
 	memset(&mbstate, '\0', sizeof(mbstate));
 #endif
-	DPrint((stderr, "runApprox, input type %d, len %ld, eflags %d, match_tagpos %p\n", type, len, eflags, match_tagpos));
-	DPrint((stderr, "max cost %d, ins %d, del %d, subst %d\n",
+	DPrintf((stderr, "=====\nrunApprox, input type %d, len %ld, eflags %d, match_tagpos %p\n",
+	 type, len, eflags, match_tagpos));
+	DPrintf((stderr, "max cost %d, ins %d, del %d, subst %d\n",
 	 params->max_cost, params->cost_ins, params->cost_del, params->cost_subst));
 
 	// Allocate memory for temporary data required for matching.  This needs to be done for every matching operation to be
@@ -1240,11 +1241,11 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 
 	// Match the string.
 	for(;;) {
-		DPrint((stderr, "%03d:%2c/%05o\n", spos.pos, (int) spos.next_c, (int) spos.next_c));
+		DPrintf((stderr, "%03d:%2c/%05o\n", spos.pos, (int) spos.next_c, (int) spos.next_c));
 
 		// Add initial states to 'reach_next' if an exact match has not yet been found.
 		if(match_costs[IdxCost] > 0) {
-			DPrint((stderr, "  init"));
+			DPrintf((stderr, "  init"));
 			for(trans = tnfa->initial; trans->state != NULL; ++trans) {
 				reach_nexti = reach_next + trans->state_id;
 
@@ -1253,10 +1254,10 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 					if(trans->assertions && assertfail(trans, &spos, tnfa, eflags)) {
 
 						// Assertions failed, don't add this state.
-						DPrint((stderr, " !%d (assertion)", trans->state_id));
+						DPrintf((stderr, " !%d (assertion)", trans->state_id));
 						continue;
 						}
-					DPrint((stderr, " %d%s", trans->state_id,
+					DPrintf((stderr, " %d%s", trans->state_id,
 					 (trans->state == tnfa->final) ? "/final" : ""));
 					reach_nexti->state = trans->state;
 					reach_nexti->pos = spos.pos;
@@ -1281,7 +1282,7 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 						}
 					}
 				}
-			DPrint((stderr, "\n"));
+			DPrintf((stderr, "\n"));
 			}
 
 		// Handle inserts.  This is done by pretending there's an epsilon transition from each state in 'reach' back to
@@ -1294,7 +1295,7 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 			reachi = reach + id;
 			reach_nexti = reach_next + id;
 			if(reachi->pos != prev_pos) {
-				DPrint((stderr, "  insert: %d not reached\n", id));
+				DPrintf((stderr, "  insert: %d not reached\n", id));
 				continue;  // Not reached.
 				}
 			depth = reachi->params.depth;
@@ -1308,12 +1309,12 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 
 			// Compute overall cost.
 			cost0 = (depth == 0) ? cost : reachi->costs[0][IdxCost] + reachi->params.pa.cost_ins;
-			DPrint((stderr, "  insert: from %d to %d, cost %d: ", id, id, reachi->costs[depth][IdxCost]));
+			DPrintf((stderr, "  insert: from %d to %d, cost %d: ", id, id, reachi->costs[depth][IdxCost]));
 			if(reach_nexti->pos == spos.pos && cost0 >= reach_nexti->costs[0][IdxCost]) {
-				DPrint((stderr, "lose\n"));
+				DPrintf((stderr, "lose\n"));
 				continue;
 				}
-			DPrint((stderr, "win\n"));
+			DPrintf((stderr, "win\n"));
 
 			// Copy state, position, tags, parameters, and depth.
 			reach_nexti->state = reachi->state;
@@ -1371,7 +1372,7 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 			 (cost = reachi->costs[depth][IdxCost] + reachi->params.pa.cost_del) > reachi->params.pa.max_cost) {
 
 				// Too many edits or cost too high.
-				DPrint((stderr, "  delete: from %03d: cost too high\n", id));
+				DPrintf((stderr, "  delete: from %03d: cost too high\n", id));
 				goto Onward;
 				}
 
@@ -1380,11 +1381,11 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 
 			for(trans = reachi->state; trans->state != NULL; ++trans) {
 				int dest_id = trans->state_id;
-				DPrint((stderr, "  delete: from %03d to %03d, cost %d (%d): ", id, dest_id, cost0,
+				DPrintf((stderr, "  delete: from %03d to %03d, cost %d (%d): ", id, dest_id, cost0,
 				 reachi->params.pa.max_cost));
 
 				if(trans->assertions && assertfail(trans, &spos, tnfa, eflags)) {
-					DPrint((stderr, "assertion failed\n"));
+					DPrintf((stderr, "assertion failed\n"));
 					continue;
 					}
 
@@ -1398,11 +1399,11 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 				if(reach_nexti->pos == spos.pos && (cost0 > reach_nexti->costs[0][IdxCost] ||
 				 (cost0 == reach_nexti->costs[0][IdxCost] && (!match_tagpos || !betterTags(num_tags,
 				 tnfa->tag_directions, tmp_tagpos, reach_nexti->tagpos))))) {
-					DPrint((stderr, "lose, cost0 %d, have %d\n",
+					DPrintf((stderr, "lose, cost0 %d, have %d\n",
 					 cost0, reach_nexti->costs[0][IdxCost]));
 					continue;
 					}
-				DPrint((stderr, "win\n"));
+				DPrintf((stderr, "win\n"));
 
 				// Copy state, position, tags, parameters, depth, and costs.
 				reach_nexti->state = trans->state;
@@ -1426,7 +1427,7 @@ int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, 
 
 				if(trans->state == tnfa->final && (match_eo < 0 || cost0 < match_costs[IdxCost] ||
 				 (cost0 == match_costs[IdxCost] && (num_tags > 0 && tmp_tagpos[0] <= match_tagpos[0])))) {
-					DPrint((stderr, "  setting new match at %d, cost %d\n", spos.pos, cost0));
+					DPrintf((stderr, "  setting new match at %d, cost %d\n", spos.pos, cost0));
 					match_eo = spos.pos;
 					intcpy(match_costs, reach_nexti->costs[0], CostArraySize);
 					intcpy(match_tagpos, tmp_tagpos, num_tags);
@@ -1479,7 +1480,7 @@ Onward:
 				bool exact;
 
 				if(trans->assertions && assertfail(trans, &spos, tnfa, eflags | ExecClassCheck)) {
-					DPrint((stderr, "  exact,  from %d: assertion failed\n", id));
+					DPrintf((stderr, "  exact,  from %d: assertion failed\n", id));
 					continue;
 					}
 
@@ -1505,11 +1506,11 @@ Onward:
 
 					// Compute overall cost.
 					cost0 = (depth == 0) ? cost : reachi->costs[0][IdxCost] + reachi->params.pa.cost_subst;
-					DPrint((stderr, "  subst,  from %03d to %03d, cost %d: ", id, dest_id, cost0));
+					DPrintf((stderr, "  subst,  from %03d to %03d, cost %d: ", id, dest_id, cost0));
 					}
 				else {
 					exact = true;
-					DPrint((stderr, "  exact,  from %03d to %03d, cost %d: ", id, dest_id, cost0));
+					DPrintf((stderr, "  exact,  from %03d to %03d, cost %d: ", id, dest_id, cost0));
 					}
 
 				// Compute tag positions after this transition.
@@ -1522,10 +1523,10 @@ Onward:
 				if(reach_nexti->pos == spos.pos && (cost0 > reach_nexti->costs[0][IdxCost] ||
 				 (cost0 == reach_nexti->costs[0][IdxCost] && !betterTags(num_tags, tnfa->tag_directions,
 				 tmp_tagpos, reach_nexti->tagpos)))) {
-					DPrint((stderr, "lose\n"));
+					DPrintf((stderr, "lose\n"));
 					continue;
 					}
-				DPrint((stderr, "win %d %d\n", reach_nexti->pos, reach_nexti->costs[0][IdxCost]));
+				DPrintf((stderr, "win %d %d\n", reach_nexti->pos, reach_nexti->costs[0][IdxCost]));
 
 				// Copy state, position, tags, and depth.
 				reach_nexti->state = trans->state;
@@ -1555,7 +1556,7 @@ Onward:
 
 				if(trans->state == tnfa->final && (match_eo < 0 || cost0 < match_costs[IdxCost] ||
 				 (cost0 == match_costs[IdxCost] && num_tags > 0 && tmp_tagpos[0] <= match_tagpos[0]))) {
-					DPrint((stderr, " setting new match at %d, cost %d\n", spos.pos, cost0));
+					DPrintf((stderr, " setting new match at %d, cost %d\n", spos.pos, cost0));
 					match_eo = spos.pos;
 					intcpy(match_costs, reach_nexti->costs[0], CostArraySize);
 					intcpy(match_tagpos, tmp_tagpos, num_tags);
@@ -1568,7 +1569,7 @@ Onward:
 			break;
 		}
 Retn:
-	DPrint((stderr, "match end offset = %d, match cost = %d\n", match_eo, match_costs[IdxCost]));
+	DPrintf((stderr, "match end offset = %d, match cost = %d\n", match_eo, match_costs[IdxCost]));
 
 	free(buf);
 	match->cost = match_costs[IdxCost];

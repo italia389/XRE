@@ -26,8 +26,10 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+// Standard macros.
 #define MaxPathname 	PATH_MAX	// Maximum pathname length.
 #define MaxFilename	NAME_MAX	// Maximum filename length.
+#define elementsof(x) (sizeof(x) / sizeof(*x))
 
 // Shortcuts for standard types.
 typedef unsigned char uchar;

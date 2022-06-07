@@ -1,6 +1,6 @@
 // xreg.c - POSIX ERE-compatible compilation, matching, and error reporting functions plus approximate matching routines.
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -65,7 +65,7 @@ static int towide(wchar_t *wpat, const char *pat, size_t *plen) {
 					consumed = 1;
 					break;
 				case -1:
-					DPrint((stderr, "mbrtowc: error %d: %s.\n", errno, strerror(errno)));
+					DPrintf((stderr, "mbrtowc: error %d: %s.\n", errno, strerror(errno)));
 					return REG_BADPAT;
 				case -2:
 					// The last character wasn't complete.  Let's just ignore it and stop here.
@@ -201,7 +201,7 @@ void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnf
 	if(match_eo >= 0 && !(cflags & REG_NOSUB)) {
 
 		// Construct submatch offsets from the tag positions (tagpos).
-		DPrint((stderr, "end tag = t%d = %d\n", tnfa->end_tag, match_eo));
+		DPrintf((stderr, "end tag = t%d = %d\n", tnfa->end_tag, match_eo));
 		submatch_data = tnfa->submatch_data;
 		pmatchi = pmatch;
 		while(i < tnfa->num_submatches && i < nmatch) {
@@ -214,7 +214,7 @@ void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnf
 			if(pmatchi->rm_so == -1 || pmatchi->rm_eo == -1)
 				pmatchi->rm_so = pmatchi->rm_eo = -1;
 
-			DPrint((stderr, "pmatch[%d] = {t%d = %d, t%d = %d}\n", i,
+			DPrintf((stderr, "pmatch[%d] = {t%d = %d, t%d = %d}\n", i,
 			 submatch_data->so_tag, pmatchi->rm_so, submatch_data->eo_tag, pmatchi->rm_eo));
 			++i;
 			++submatch_data;
@@ -229,14 +229,14 @@ void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnf
 			if(i >= tnfa->num_submatches)
 				pmatchi->rm_so = pmatchi->rm_eo = -1;
 			else {
-				DPrint((stderr, "reset check %d: rm_so %d, rm_eo %d\n", i, pmatchi->rm_so, pmatchi->rm_eo));
+				DPrintf((stderr, "reset check %d: rm_so %d, rm_eo %d\n", i, pmatchi->rm_so, pmatchi->rm_eo));
 				if(pmatchi->rm_eo == -1)
 					assert(pmatchi->rm_so == -1);
 				assert(pmatchi->rm_so <= pmatchi->rm_eo);
 
 				if((parent = submatch_data->parents) != NULL)
 					while(*parent >= 0) {
-						DPrint((stderr, "pmatch[%d] parent is %d\n", i, *parent));
+						DPrintf((stderr, "pmatch[%d] parent is %d\n", i, *parent));
 						if(pmatchi->rm_so < pmatch[*parent].rm_so ||
 						 pmatchi->rm_eo > pmatch[*parent].rm_eo)
 							pmatchi->rm_so = pmatchi->rm_eo = -1;
@@ -244,7 +244,7 @@ void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnf
 						}
 				++submatch_data;
 				}
-			DPrint((stderr, "reset pmatch[%d] = {%d, %d}\n", i, pmatchi->rm_so, pmatchi->rm_eo));
+			DPrintf((stderr, "reset pmatch[%d] = {%d, %d}\n", i, pmatchi->rm_so, pmatchi->rm_eo));
 			++i;
 			++pmatchi;
 			}
@@ -286,7 +286,7 @@ int xlibconf(void) {
 	}
 
 // Return the (static) library version string.
-char *xlibvers(void) {
+char *xrevers(void) {
 	static char str[32];
 
 	if(str[0] == '\0')
@@ -471,7 +471,7 @@ int xregauexec(const regex_t *preg, const regusource_t *string, regamatch_t *mat
 
 // Copy an XRE regular expression from 'pat' to 'revpat' with all atoms reversed and return status code.  'revpat' is assumed
 // to point to a buffer that is at least "length of pat + 1".  If REG_ENHANCED is specified in 'cflags', 'pat' is assumed to
-// point to an Enhanced Extended RE; otherwise, an Extended RE.  Note that the converted RE can subsequently be compiled with
+// point to an Enhanced Extended RE, otherwise an Extended RE.  Note that the converted RE can subsequently be compiled with
 // the REG_REVERSED flag and used for backward matches as long as it does not contain back references or stand-alone options.
 int xregnrev(char *revpat, const char *pat, size_t len, int cflags) {
 	int status;
@@ -502,7 +502,7 @@ int xregnrev(char *revpat, const char *pat, size_t len, int cflags) {
 				}
 #if EnableMultibyte
 			else if(wcstombs(revpat, revpat1, len + 1) == (size_t) -1) {
-				DPrint((stderr, "wcstombs: error %d: %s.\n", errno, strerror(errno)));
+				DPrintf((stderr, "wcstombs: error %d: %s.\n", errno, strerror(errno)));
 				*revpat = '\0';
 				status = REG_BADPAT;
 				}

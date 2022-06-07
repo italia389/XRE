@@ -1,6 +1,6 @@
 // internal.h - XRE internal definitions.
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -18,9 +18,9 @@
 
 #ifdef XRE_Debug
 #include <stdio.h>
-#define DPrint(msg) fprintf msg, fflush(stderr)
+#define DPrintf(msg) fprintf msg, fflush(stderr)
 #else
-#define DPrint(msg)
+#define DPrintf(msg)
 #endif
 
 #define elementsof(x) (sizeof(x) / sizeof(x[0]))
@@ -210,7 +210,9 @@ typedef struct {
 
 #ifdef XRE_Debug
 extern void print_codes_and_tags(int code_min, int code_max, int *tags);
+#if EnableApprox
 extern void printParams(bool printLabel, regaparams_t *params);
+#endif
 extern void printTags(char *label, int *tags, int count);
 #endif
 extern int compilePat(regex_t *preg, const xchar_t *regex, size_t n, int cflags);

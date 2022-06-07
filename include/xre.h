@@ -1,6 +1,6 @@
 // xre.h - XRE public API definitions.
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -20,7 +20,7 @@
 #define EnableApprox		1	// Enable approximate matching?
 #define EnableReverse		1	// Enable reversed patterns and backward matching?
 
-#define XRE_Version		"1.0.0"
+#define XRE_Version		"1.1.0"
 
 #if EnableMultibyte && !EnableWChar
 #undef EnableWChar
@@ -151,8 +151,6 @@ typedef struct {
 // User data version (not in POSIX).
 extern int xreguexec(const regex_t *preg, const regusource_t *string, size_t nmatch, regmatch_t pmatch[], int eflags);
 
-#if EnableApprox
-
 // Structure for approximate matching parameters.
 typedef struct {
 	int cost_ins; 			// Default cost of an inserted character.
@@ -165,6 +163,8 @@ typedef struct {
 	int max_subst;			// Maximum allowed number of substitutes.
 	int max_edit;			// Maximum allowed number of edits.
 	} regaparams_t;
+
+#if EnableApprox
 
 // Approximate matching result struct.
 typedef struct {
@@ -227,8 +227,8 @@ extern int xlibconf(void);
 #define ConfigApprox		0x0004
 #define ConfigReverse		0x0008
 
-// Returns the (static) library version string.
-extern char *xlibvers(void);
+// Returns a library version string.
+extern char *xrevers(void);
 
 #ifdef __cplusplus
 	}

@@ -1,0 +1,40 @@
+.\" (c) Copyright 2022 Richard W. Marinelli
+.\"
+.\" This work is licensed under the GNU General Public License (GPLv3).  To view a copy of this license, see the
+.\" "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
+.\"
+.ad l
+.TH XREVERS 3 2022-06-04 "Ver. 1.1.0" "XRE Library Documentation"
+.nh \" Turn off hyphenation.
+.SH NAME
+\fBxreconf\fR, \fBxrevers\fR - routines for obtaining extended regular expression (XRE) library information
+.SH SYNOPSIS
+\fB#include "xre.h"\fR
+.HP 2
+\fBint xreconf(void);\fR
+.HP 2
+\fBchar *xrevers(void);\fR
+.SH DESCRIPTION
+These routines provide information about the XRE library.
+.PP
+The \fBxreconf\fR() routine returns configuration information about the library; that is, its build options.
+The returned integer is the bitwise OR of zero or more of the following flags:
+.sp
+.PD 0
+.RS 5
+.IP ConfigWChar 20
+Wide characters (\fIwchar_t\fR) are supported.
+.IP ConfigMultibyte 20
+Multibyte characters are supported.
+.IP ConfigApprox 20
+Approximate matching is supported.
+.IP ConfigReverse 20
+Reversed patterns and backward searching are supported.
+.RE
+.PD
+.PP
+Note that if the ConfigMultibyte flag is set, the ConfigWChar flag will also be set.
+.PP
+The \fBxrevers\fR() routine returns a human-readable library version string.
+.SH SEE ALSO
+xre(3), xregaex(3)

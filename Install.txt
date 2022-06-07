@@ -1,11 +1,11 @@
 Instructions for Installing the XRE Library
 
-Installer packages are included for the macOS platform and Linux platforms
-(CentOS, Debian, GNU/Linux, Red Hat, Ubuntu, and others).  The standard
-installation packages place files in /usr/local and require superuser (root)
-privileges.  (C include files, man pages, and the 'libxre.a' static library are
-installed.)  If you are not installing on a macOS or GNU/Linux platform, want to
-install the XRE library in your HOME directory, or want to customize the
+Installer packages for the XRE library are included for the macOS platform and
+Linux platforms (CentOS, Debian, GNU/Linux, Red Hat, Ubuntu, and others).  The
+standard installation packages place files in /usr/local and require superuser
+(root) privileges.  (C include files, man pages, and the 'libxre.a' static
+library are installed.)  If you are not installing on a macOS or GNU/Linux
+platform, want to install in your HOME directory, or want to customize the
 installation process, please refer to file CustomInstall.txt for instructions.
 
 For a standard installation of the XRE library, perform the following steps:
@@ -17,21 +17,21 @@ For a standard installation of the XRE library, perform the following steps:
  2. If you are installing on a Linux platform, go to the next step; otherwise,
     go to step 5.
 
- 3. The Linux installer is xre-1.0.0.sh, which includes 64-bit binaries built
-    on a CentOS vers. 6 machine.  To run the installer, type the following
+ 3. The Linux library installer is xre-1.1.0.sh, which includes 64-bit binaries
+    built on a CentOS vers. 6 machine.  To run the installer, type the following
     commands:
 
 	$ su root
-	# ./xre-1.0.0.sh
+	# ./xre-1.1.0.sh
 	# exit
 
  4. Go to step 6.
 
- 5. The macOS installer is xre-1.0.0.pkg, which includes 64-bit binaries
-    built for macOS vers. 10.10 (Yosemite) and later.  Open the installer
-    package with the following command:
+ 5. The macOS installer is xre-1.1.0.pkg, which includes 64-bit binaries
+    built for macOS vers. 10.12 (Sierra) and later.  Open the installer package
+    with the following command:
 
-	$ open xre-1.0.0.pkg
+	$ open xre-1.1.0.pkg
 
     and run the installer.
 
@@ -45,7 +45,13 @@ For a standard installation of the XRE library, perform the following steps:
 	# ln -sfh /usr/local/lib/libxre{-8bit,}.a
 	# exit
 
-Note that the -lxre switch or path to the XRE library (/usr/local/lib/libxre.a)
-must be provided to the linker when you link your programs.  See xre_core(3) for
-a description of the XRE core library routines, and xre_format(7) for a
-description of the regular expression syntax.
+ 7. If you want to install the source files for the included regular expression
+    test utility (txre.c) into your HOME directory, go to the last step of the
+    installation instructions in file CustomInstall.txt.  If you are installing
+    on a macOS system however, Xcode must already be installed (vers. 7.2.1 or
+    later recommended) so that command-line tools are available.
+
+Note that in order to link your programs with the XRE library, you must use the
+-lxre switch or provide the library path (/usr/local/lib/libxre.a) to the
+linker.  Also, see xregex(3) for a description of the XRE core library routines
+and xre_format(7) for a description of the regular expression syntax.

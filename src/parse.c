@@ -1,6 +1,6 @@
 // parse.c - Regular expression parsing and abstract syntax tree (AST) routines.
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -206,7 +206,7 @@ static void printNode(ast_node_t *ast, int indent) {
 
 void printAST(ast_node_t *tree, const char *label) {
 
-	fprintf(stderr, "AST - %s:\n", label);
+	fprintf(stderr, "-----\nAST - %s:\n", label);
 	printNode(tree, 0);
 	}
 
@@ -366,7 +366,7 @@ static int newItem(memhdr_t *mem, int min, int max, item_list_t *ilist) {
 	// Allocate more space if necessary.
 	if(ilist->n == ilist->size) {
 		ast_node_t **new_items;
-		DPrint((stderr, "out of array space, n = %d\n", ilist->n));
+		DPrintf((stderr, "out of array space, n = %d\n", ilist->n));
 
 		// If the array is already 1024 items large, give up -- there's probably an error in the regexp; e.g., not a
 		// '\0' terminated string and/or missing ']'.
@@ -390,7 +390,7 @@ static int expandCC(memhdr_t *mem, xctype_t class, item_list_t *ilist, int cflag
 	int min = -1, max = 0;
 	assert(XRE_MB_CUR_MAX == 1);
 
-	DPrint((stderr, "  expanding class to character ranges\n"));
+	DPrintf((stderr, "  expanding class to character ranges\n"));
 	for(j = 0; j < 256; ++j) {
 		c = (xcint_t) j;
 		if(xisctype(c, class) || ((cflags & REG_ICASE) && (xisctype(xtolower(c), class) ||
@@ -400,7 +400,7 @@ static int expandCC(memhdr_t *mem, xctype_t class, item_list_t *ilist, int cflag
 			max = c;
 			}
 		else if(min >= 0) {
-			DPrint((stderr, "  range conversion %c (%d) to %c (%d)\n", min, min, max, max));
+			DPrintf((stderr, "  range conversion %c (%d) to %c (%d)\n", min, min, max, max));
 			if((status = newItem(mem, min, max, ilist)) != REG_OK)
 				return status;
 			min = -1;
@@ -419,7 +419,7 @@ static int parseCC(parse_ctx_t *ctx, const xchar_t **pre, xctype_t *pclass) {
 	int len;
 	char tmp_str[64];
 
-	DPrint((stderr, "  named class: '%.*" StrF "'\n", Rest(re)));
+	DPrintf((stderr, "  named class: '%.*" StrF "'\n", Rest(re)));
 
 	// Find end of name.
 	for(;;) {
@@ -443,7 +443,7 @@ static int parseCC(parse_ctx_t *ctx, const xchar_t **pre, xctype_t *pclass) {
 	strncpy(tmp_str, (const char *) re, len);
 	tmp_str[len] = '\0';
 #endif
-	DPrint((stderr, "  class name: %s\n", tmp_str));
+	DPrintf((stderr, "  class name: %s\n", tmp_str));
 	if(!(*pclass = xctype(tmp_str)))
 		return REG_ECTYPE;
 
@@ -521,7 +521,7 @@ static int parseItem(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass
 		else {
 Literal:
 			// Have literal character... save it.
-			DPrint((stderr, "  char: '%.*" StrF "'\n", Rest(re)));
+			DPrintf((stderr, "  char: '%.*" StrF "'\n", Rest(re)));
 			if(min == -1)
 				min = c;
 			else {
@@ -579,7 +579,7 @@ Literal:
 		// characters.
 		if(ctx->cflags & REG_ICASE && !class) {
 			xcint_t cmin, cmax;
-			DPrint((stderr, "adding opposite-case counterpoints\n"));
+			DPrintf((stderr, "adding opposite-case counterpoints\n"));
 			do {
 				if(xislower(min)) {
 					cmin = cmax = xtoupper(min++);
@@ -610,7 +610,7 @@ static int parseBracketItems(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t
 	int status;
 	const xchar_t *re = ctx->re;
 
-	DPrint((stderr, "parseBracketItems: parsing '%.*" StrF "', len %d\n", Rest(re), (int)(ctx->re_end - re)));
+	DPrintf((stderr, "parseBracketItems: parsing '%.*" StrF "', len %d\n", Rest(re), (int)(ctx->re_end - re)));
 
 	// Build an array of the items in the bracketed expression.
 	for(;;) {
@@ -620,7 +620,7 @@ static int parseBracketItems(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t
 
 		// End of bracketed expression?
 		if(*re == CharRBracket && re > ctx->re) {
-			DPrint((stderr, "parseBracketItems: done: '%.*" StrF "'\n", Rest(re)));
+			DPrintf((stderr, "parseBracketItems: done: '%.*" StrF "'\n", Rest(re)));
 			++re;
 			break;
 			}
@@ -664,7 +664,7 @@ static int parseBracket(parse_ctx_t *ctx, ast_node_t **result) {
 	nclass_list_t *nclass = NULL;
 	int curr_max, curr_min;
 	item_list_t items = {0, 32, NULL};
-	nclass_list_t nclasses = {0};
+	nclass_list_t nclasses = {0, {0}};
 
 	// Start off with an array of 'size' elements.
 	if((items.nodes = malloc(sizeof(*items.nodes) * items.size)) == NULL)
@@ -672,7 +672,7 @@ static int parseBracket(parse_ctx_t *ctx, ast_node_t **result) {
 
 	// Parse the bracketed expression.
 	if(*ctx->re == CharCircumflex) {
-		DPrint((stderr, "parseBracket: negate: '%.*" StrF "'\n", Rest(ctx->re)));
+		DPrintf((stderr, "parseBracket: negate: '%.*" StrF "'\n", Rest(ctx->re)));
 		nclass = &nclasses;
 		++ctx->re;
 		}
@@ -686,40 +686,43 @@ static int parseBracket(parse_ctx_t *ctx, ast_node_t **result) {
 	// Build a union of the items in the array, negated if necessary.
 	curr_max = curr_min = 0;
 	for(pitemz = (pitem = items.nodes) + items.n; pitem < pitemz; ++pitem) {
-		int min, max;
 		ast_lit_t *lnode = (*pitem)->obj;
-		min = lnode->code_min;
-		max = lnode->code_max;
+		int min = lnode->code_min;
+		int max = lnode->code_max;
 
-		DPrint((stderr, "item: %d - %d, class %ld, curr_max = %d\n",
-		 (int) lnode->code_min, (int) lnode->code_max, (long) lnode->u.class, curr_max));
+		DPrintf((stderr, "item: %d - %d, class %ld, curr_max = %d\n", min, max, (long) lnode->u.class, curr_max));
 
 		if(nclass != NULL) {
 			if(min < curr_max) {
 
 				// Overlap.
 				curr_max = Max(max + 1, curr_max);
-				DPrint((stderr, "overlap, curr_max = %d\n", curr_max));
+				DPrintf((stderr, "overlap, curr_max = %d\n", curr_max));
 				lnode = NULL;
 				}
 			else {
 				// No overlap.
 				curr_max = min - 1;
 				if(curr_max >= curr_min) {
-					DPrint((stderr, "no overlap\n"));
+					DPrintf((stderr, "no overlap\n"));
 					lnode->code_min = curr_min;
 					lnode->code_max = curr_max;
 					}
 				else {
-					DPrint((stderr, "no overlap, zero room\n"));
+					DPrintf((stderr, "no overlap, zero room\n"));
 					lnode = NULL;
 					}
 				curr_min = curr_max = max + 1;
 				}
 			}
 
-		if(lnode != NULL) {
-			DPrint((stderr, "creating %d - %d\n", (int) lnode->code_min, (int) lnode->code_max));
+		// Skip node completely if negated expression, range is a single newline, REG_NEWLINE flag set, and REG_ANY
+		// flag not set so that newline is excluded.
+		if(lnode != NULL && (nclass == NULL || lnode->code_min != L'\n' || lnode->code_max != L'\n' ||
+		 (ctx->cflags & (REG_NEWLINE | REG_ANY)) != REG_NEWLINE)) {
+
+			// Not newline special case... keep node.
+			DPrintf((stderr, "creating item %d - %d\n", (int) lnode->code_min, (int) lnode->code_max));
 			lnode->position = ctx->position;
 			if(nclasses.n == 0)
 				lnode->neg_classes = NULL;
@@ -737,16 +740,18 @@ static int parseBracket(parse_ctx_t *ctx, ast_node_t **result) {
 				node = u;
 				}
 
-			// Adjust node if negated expression, range includes "newline", REG_NEWLINE flag set, and REG_ANY flag
-			// not set so that newline is excluded.
-			if(nclass != NULL && lnode->code_min < L'\n' && lnode->code_max > L'\n' &&
+			// Now check for newline in range: if negated expression, range includes newline, REG_NEWLINE flag set,
+			// and REG_ANY flag not set, adjust node so that newline is excluded.
+			if(nclass != NULL && lnode->code_min <= L'\n' && lnode->code_max >= L'\n' &&
 			 (ctx->cflags & (REG_NEWLINE | REG_ANY)) == REG_NEWLINE) {
+				DPrintf((stderr, "removing newline from item %d - %d\n",
+				 (int) lnode->code_min, (int) lnode->code_max));
 				if(lnode->code_min == L'\n')
 					++lnode->code_min;
 				else if(lnode->code_max == L'\n')
 					--lnode->code_max;
 				else {
-					// Newline inside range.  Use existing node for chars preceding newline.
+					// Newline inside range... split it.  Use existing node for chars preceding newline.
 					ast_lit_t *l2;
 					int oldmax = lnode->code_max;
 					lnode->code_max = L'\n' - 1;
@@ -778,7 +783,7 @@ static int parseBracket(parse_ctx_t *ctx, ast_node_t **result) {
 		}
 
 	if(nclass != NULL) {
-		DPrint((stderr, "final: creating %d - %d\n", curr_min, (int) XRE_CHAR_MAX));
+		DPrintf((stderr, "final: creating %d - %d\n", curr_min, (int) XRE_CHAR_MAX));
 		if((n = ast_newLit(ctx->mem, curr_min, XRE_CHAR_MAX, ctx->position)) == NULL) {
 			status = REG_ESPACE;
 			goto Retn;
@@ -897,13 +902,13 @@ static int parseBrace(parse_ctx_t *ctx, ast_node_t **result) {
 			goto ERetn;
 #endif
 		// Have minimum repetition count.
-		DPrint((stderr, "parse_brace: min count: '%.*" StrF "'\n", Rest(start)));
+		DPrintf((stderr, "parse_brace: min count: '%.*" StrF "'\n", Rest(start)));
 		min = n;
 
 		// Parse comma and second number (maximum repetition count).
 		if(*re == CharComma) {
 			++re;
-			DPrint((stderr, "parse_brace: max count: '%.*" StrF "'\n", Rest(re)));
+			DPrintf((stderr, "parse_brace: max count: '%.*" StrF "'\n", Rest(re)));
 			if(re == ctx->re_end)
 				goto ERetn;
 			max = parseInt(&re, ctx->re_end);	// Will be -1 if number not present.
@@ -952,7 +957,7 @@ CostEQ:
 #endif
 							pitem = &costSubst;
 SetCost:
-							DPrint((stderr, "parse_brace: %s cost: '%.*" StrF "'\n", str,
+							DPrintf((stderr, "parse_brace: %s cost: '%.*" StrF "'\n", str,
 							 Rest(start)));
 							if(*pitem != ParamUnset)
 								goto ERetn;
@@ -1001,7 +1006,7 @@ CheckEdits:
 #endif
 							pitem = &maxEdit;
 SetMax:
-							DPrint((stderr, "parse_brace: %s limit: '%.*" StrF "'\n", str,
+							DPrintf((stderr, "parse_brace: %s limit: '%.*" StrF "'\n", str,
 							 Rest(re)));
 							if(*pitem != ParamUnset || (editsSet && editsSet != pass) ||
 							 (editTotalSet && editTotalSet != pass))
@@ -1021,7 +1026,7 @@ ParseCostTotal:
 								goto NoBrace;
 							if(*re != L'=')
 								goto ERetn;
-							DPrint((stderr, "parse_brace: max cost: '%.*" StrF "'\n", Rest(re)));
+							DPrintf((stderr, "parse_brace: max cost: '%.*" StrF "'\n", Rest(re)));
 							if(maxCost != ParamUnset || (costsSet && costsSet != pass) ||
 							 (editsSet && editsSet == pass) ||
 							 (editTotalSet && editTotalSet == pass))
@@ -1119,7 +1124,7 @@ NoBrace:
 	fputc('\n', stderr);
 #endif
 #else
-	DPrint((stderr, "parse_brace: min %d, max %d\n", min, max));
+	DPrintf((stderr, "parse_brace: min %d, max %d\n", min, max));
 #endif
 	ctx->re = re;
 	return REG_OK;
@@ -1180,7 +1185,7 @@ int parsePat(parse_ctx_t *ctx) {
 	int temp_cflags = 0;
 	char *str;
 
-	DPrint((stderr, "parsePat: parsing '%.*" StrF "', len %d\n", ctx->len, ctx->re, ctx->len));
+	DPrintf((stderr, "parsePat: parsing '%.*" StrF "', len %d\n", ctx->len, ctx->re, ctx->len));
 	if(ctx->len == 0)
 		return REG_EMPTY;
 	if(ctx->keepfirst) {
@@ -1243,7 +1248,7 @@ int parsePat(parse_ctx_t *ctx) {
 					if(c == CharPipe)
 						break;
 					if(c == CharRParen && depth > 0) {
-						DPrint((stderr, "parsePat: group end: '%.*" StrF "'\n", Rest(ctx->re)));
+						DPrintf((stderr, "parsePat: group end: '%.*" StrF "'\n", Rest(ctx->re)));
 						--depth;
 						break;
 						}
@@ -1278,7 +1283,7 @@ int parsePat(parse_ctx_t *ctx) {
 					break;
 				switch(*ctx->re) {
 					case CharPipe:
-						DPrint((stderr, "parsePat: union: '%.*" StrF "'\n", Rest(ctx->re)));
+						DPrintf((stderr, "parsePat: union: '%.*" StrF "'\n", Rest(ctx->re)));
 						StackPush(stack, int, ParseUnion);
 						StackPush(stack, voidptr, result);
 						StackPush(stack, int, ParsePostUnion);
@@ -1339,7 +1344,7 @@ int parsePat(parse_ctx_t *ctx) {
 								}
 							}
 
-						DPrint((stderr, "parsePat: %s iter: '%.*" StrF "'\n",
+						DPrintf((stderr, "parsePat: %s iter: '%.*" StrF "'\n",
 						 minimal ? "minimal" : "greedy", Rest(tmp_re)));
 						++ctx->re;
 						if((tmp_node = ast_newIter(ctx->mem, result, rep_min, rep_max,
@@ -1350,7 +1355,7 @@ int parsePat(parse_ctx_t *ctx) {
 						}
 						break;
 					case CharLBrace:
-						DPrint((stderr, "parsePat: bound: '%.*" StrF "'\n", Rest(ctx->re)));
+						DPrintf((stderr, "parsePat: bound: '%.*" StrF "'\n", Rest(ctx->re)));
 						++ctx->re;
 
 						if((status = parseBrace(ctx, &result)) != REG_OK)
@@ -1376,7 +1381,7 @@ int parsePat(parse_ctx_t *ctx) {
 							char *msg;
 							int flag, new_cflags = ctx->cflags;
 							int bit = 1;
-							DPrint((stderr, "parsePat: extension: '%.*" StrF "\n", Rest(ctx->re)));
+							DPrintf((stderr, "parsePat: extension: '%.*" StrF "\n", Rest(ctx->re)));
 							ctx->re += 2;
 							for(;;) {
 								msg = NULL;
@@ -1406,19 +1411,19 @@ int parsePat(parse_ctx_t *ctx) {
 										flag = REG_UNGREEDY;
 										break;
 									case CharMinus:
-										DPrint((stderr, "parsePat: turn off: '%.*" StrF
+										DPrintf((stderr, "parsePat: turn off: '%.*" StrF
 										 "\n", Rest(ctx->re)));
 										++ctx->re;
 										bit = 0;
 										break;
 									case CharColon:
-										DPrint((stderr, "parsePat: non-capturing: '%.*"
+										DPrintf((stderr, "parsePat: non-capturing: '%.*"
 										 StrF "\n", Rest(ctx->re)));
 										++ctx->re;
 										++depth;
 										goto EndOpts;
 									case CharHash:
-										DPrint((stderr, "parsePat: comment: '%.*" StrF
+										DPrintf((stderr, "parsePat: comment: '%.*" StrF
 										 "\n", Rest(ctx->re)));
 
 										// A comment can contain any character except a
@@ -1442,7 +1447,7 @@ int parsePat(parse_ctx_t *ctx) {
 										return REG_BADPAT;
 									}
 								if(msg != NULL) {
-									DPrint((stderr, "parsePat: %s: '%.*" StrF "\n", msg,
+									DPrintf((stderr, "parsePat: %s: '%.*" StrF "\n", msg,
 									 Rest(ctx->re)));
 									if(bit)
 										new_cflags |= flag;
@@ -1462,7 +1467,7 @@ EndOpts:
 						++depth;
 						if(ctx->cflags & REG_ENHANCED && ctx->re + 2 < ctx->re_end &&
 						 ctx->re[1] == CharHook && ctx->re[2] == CharColon) {
-							DPrint((stderr, "parsePat: group begin: '%.*" StrF
+							DPrintf((stderr, "parsePat: group begin: '%.*" StrF
 							 "', no submatch\n", Rest(ctx->re)));
 
 							// Don't mark for submatching.
@@ -1470,7 +1475,7 @@ EndOpts:
 							StackPush(stack, int, ParseRE);
 							}
 						else {
-							DPrint((stderr, "parsePat: group begin: '%.*" StrF "', submatch %d\n",
+							DPrintf((stderr, "parsePat: group begin: '%.*" StrF "', submatch %d\n",
 							 Rest(ctx->re), ctx->submatch_id));
 							++ctx->re;
 
@@ -1483,7 +1488,7 @@ EndOpts:
 						break;
 					case CharRParen:	// End of current subexpression.
 						if(depth > 0) {
-							DPrint((stderr, "parsePat: empty: '%.*" StrF "'\n", Rest(ctx->re)));
+							DPrintf((stderr, "parsePat: empty: '%.*" StrF "'\n", Rest(ctx->re)));
 
 							// We were expecting an atom, but instead the current subexpression was
 							// closed.  POSIX leaves the meaning of this to be implementation-
@@ -1496,7 +1501,7 @@ EndOpts:
 							goto ParseLit;
 						break;
 					case CharLBracket:	// Bracket expression.
-						DPrint((stderr, "parsePat: bracket: '%.*" StrF "'\n", Rest(ctx->re)));
+						DPrintf((stderr, "parsePat: bracket: '%.*" StrF "'\n", Rest(ctx->re)));
 						++ctx->re;
 						if((status = parseBracket(ctx, &result)) != REG_OK)
 							return status;
@@ -1533,7 +1538,7 @@ EndOpts:
 
 						// Enhanced mode.  Check for other metacharacters.
 						if(ctx->re[1] == L'Q') {
-							DPrint((stderr, "parsePat: tmp literal: '%.*" StrF "'\n",
+							DPrintf((stderr, "parsePat: tmp literal: '%.*" StrF "'\n",
 							 Rest(ctx->re)));
 							ctx->cflags |= REG_LITERAL;
 							temp_cflags |= REG_LITERAL;
@@ -1542,7 +1547,7 @@ EndOpts:
 							break;
 							}
 
-						DPrint((stderr, "parsePat: bleep: '%.*" StrF "'\n", Rest(ctx->re)));
+						DPrintf((stderr, "parsePat: bleep: '%.*" StrF "'\n", Rest(ctx->re)));
 						++ctx->re;
 						switch(*ctx->re) {
 							case L'b':
@@ -1567,7 +1572,7 @@ EndOpts:
 								++ctx->re;	// May be past end.
 								{long val;
 								int maxDigits = 2;
-								DPrint((stderr, "parsePat: hex value: '%.*" StrF "'\n",
+								DPrintf((stderr, "parsePat: hex value: '%.*" StrF "'\n",
 								 Rest(ctx->re - 2)));
 								if(ctx->re < ctx->re_end && *ctx->re == CharLBrace) {
 									maxDigits = 16;
@@ -1585,7 +1590,7 @@ EndOpts:
 
 									// Back reference.
 									int val = *ctx->re - L'0';
-									DPrint((stderr, "parsePat: backref: '%.*" StrF "'\n",
+									DPrintf((stderr, "parsePat: backref: '%.*" StrF "'\n",
 									 Rest(ctx->re - 1)));
 									if(ctx->cflags & REG_REVERSED)
 										return REG_EREGREV;
@@ -1598,7 +1603,7 @@ EndOpts:
 								else {
 EscChar:
 									// Escaped character.
-									DPrint((stderr, "parsePat: escaped: '%.*" StrF "'\n",
+									DPrintf((stderr, "parsePat: escaped: '%.*" StrF "'\n",
 									 Rest(ctx->re - 1)));
 									result = ast_newLit(ctx->mem, *ctx->re,
 									 *ctx->re, ctx->position);
@@ -1611,7 +1616,7 @@ EscChar:
 							return REG_ESPACE;
 						break;
 					case CharPeriod:	// The "any" symbol.
-						DPrint((stderr, "parsePat: any: '%.*" StrF "'\n", Rest(ctx->re)));
+						DPrintf((stderr, "parsePat: any: '%.*" StrF "'\n", Rest(ctx->re)));
 						if((ctx->cflags & (REG_NEWLINE | REG_ANY)) == REG_NEWLINE) {
 							ast_node_t *tmp1;
 							ast_node_t *tmp2;
@@ -1637,7 +1642,7 @@ NotNL:
 						status = AssertAtEOL;
 						str = "EOL";
 NewAssert:
-						DPrint((stderr, "parsePat: %s: '%.*" StrF "'\n", str, Rest(ctx->re)));
+						DPrintf((stderr, "parsePat: %s: '%.*" StrF "'\n", str, Rest(ctx->re)));
 
 						// Repetition not allowed on an assertion.
 						if(ctx->re + 1 < ctx->re_end)
@@ -1657,7 +1662,7 @@ ParseLit:
 						// Check for \E following prior \Q (enhanced mode only - temp_cflags set).
 						if(temp_cflags && ctx->re + 1 < ctx->re_end &&
 						 ctx->re[0] == CharBackslash && ctx->re[1] == L'E') {
-							DPrint((stderr, "parsePat: end tmps: '%.*" StrF "'\n", Rest(ctx->re)));
+							DPrintf((stderr, "parsePat: end tmps: '%.*" StrF "'\n", Rest(ctx->re)));
 							ctx->cflags &= ~temp_cflags;
 							temp_cflags = 0;
 							ctx->re += 2;
@@ -1667,7 +1672,7 @@ ParseLit:
 
 						// We must have an atom at this point.  If not, we have a logic error.
 						assert(ctx->re < ctx->re_end);
-						DPrint((stderr, "parsePat: literal: '%.*" StrF "'\n", Rest(ctx->re)));
+						DPrintf((stderr, "parsePat: literal: '%.*" StrF "'\n", Rest(ctx->re)));
 
 						// Note that we can't use an xisalpha() test here because there may be
 						// characters which are alphabetic but neither upper or lower case.

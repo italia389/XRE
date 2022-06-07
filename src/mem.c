@@ -1,6 +1,6 @@
 // mem.c - XRE memory allocator and stack management.
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -45,7 +45,7 @@ void *memAlloc(memhdr_t *mem, size_t size, bool zero) {
 	void *ptr;
 
 	if(mem->failed) {
-		DPrint((stderr, "memAlloc: oops, called after failure!\n"));
+		DPrintf((stderr, "memAlloc: oops, called after failure!\n"));
 		return NULL;
 		}
 
@@ -54,7 +54,7 @@ void *memAlloc(memhdr_t *mem, size_t size, bool zero) {
 		// We need more memory than is available in the current block.  Allocate a new one.
 		memlist_t *blk;
 		size_t blkSize = (size * 8 > MemBlockSize) ? size * 8 : MemBlockSize;
-		DPrint((stderr, "memAlloc: allocating new %lu byte block\n", blkSize));
+		DPrintf((stderr, "memAlloc: allocating new %lu byte block\n", blkSize));
 		if((blk = malloc(sizeof(*blk))) == NULL)
 			goto Fail;
 		if((blk->data = malloc(blkSize)) == NULL) {
@@ -139,22 +139,22 @@ static int xstack_push(xstack_t *s, union xstack_item value) {
 	if(s->idx < s->size)
 		s->stack[s->idx++] = value;
 	else if(s->size >= s->max_size) {
-		DPrint((stderr, "xstack_push: stack full!\n"));
+		DPrintf((stderr, "xstack_push: stack full!\n"));
 		return REG_ESPACE;
 		}
 	else {
 		union xstack_item *newBuffer;
 		int newSize;
 
-		DPrint((stderr, "xstack_push: trying to realloc more space\n"));
+		DPrintf((stderr, "xstack_push: trying to realloc more space\n"));
 		newSize = s->size + s->increment;
 		if(newSize > s->max_size)
 			newSize = s->max_size;
 		if((newBuffer = realloc(s->stack, sizeof(*newBuffer) * newSize)) == NULL) {
-			DPrint((stderr, "xstack_push: realloc failed!\n"));
+			DPrintf((stderr, "xstack_push: realloc failed!\n"));
 			return REG_ESPACE;
 			}
-		DPrint((stderr, "xstack_push: realloc succeeded.\n"));
+		DPrintf((stderr, "xstack_push: realloc succeeded.\n"));
 		assert(newSize > s->size);
 		s->size = newSize;
 		s->stack = newBuffer;

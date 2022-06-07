@@ -7,12 +7,10 @@
 
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <locale.h>
 #include "tutil.h"
-#include "xre.h"
 
 // Types and functions needed for xreguexec().
 typedef struct {
@@ -98,17 +96,12 @@ static size_t strconv(char *str, bool nullOnly) {
 	return s2 - str;
 	}
 
-// Return Boolean value as a literal.
-static char *trueFalse(bool val) {
-
-	return val ? "true" : "false";
-	}
-
 // Parse command-line arguments and process them.  Write results to standard output.
 int main(int argc, char *argv[]) {
+	const char *Version = "1.1.0";
 	int status, cflags = 0, eflags = 0;
+	char *Myself, *execName;
 	char *pat, *str1, *str2, *locale = NULL;
-	char *execName;
 	size_t grp, slen, plen;
 	regex_t re;
 	bool aFuncs = false;
@@ -117,8 +110,8 @@ int main(int argc, char *argv[]) {
 	bool uFuncs = false;
 	char wkbuf[80];
 
-	// Check arguments.
-	str1 = *argv++;
+	// Check arguments and set flags.
+	Myself = *argv++;
 	--argc;
 	while(argc > 0) {
 		str2 = *argv;
@@ -176,7 +169,9 @@ int main(int argc, char *argv[]) {
 	if(argc < 2) {
 Usage:
 		fprintf(stderr,
-		 "%s\n"
+		 "%s %s (GPLv3) [linked with %s]\n", Myself, Version, xrevers());
+		xconf();
+		fprintf(stderr,
 		 "Usage:\n"
 		 "    %s [-A] [-a] [-B] [-E] [-F] [-I] [-l] [-N] [-n] [-U] [-u] [-X] str pat ...\n"
 		 "Switches:\n"
@@ -201,7 +196,7 @@ Usage:
 		 "    features; otherwise, REG_MODERATE.\n"
 		 "Example:\n"
 		 "    %s -N -E 'abc \\txyxyz!\\n' '\\h+(\\l+)\\b' '^([^\\t]+)\\t?(\\w+)\\2' '^\\s*$'\n",
-		 xlibvers(), str1, str1);
+		Myself, Myself);
 		exit(1);
 		}
 
@@ -213,16 +208,16 @@ Usage:
 	if(aFuncs && regExact)
 		xregainit(&aparams, REG_EXACT);
 
-	printf("%s\n", xlibvers());
 	context.str = str1 = *argv++;
 	--argc;
+	progHdr(Myself, Version);
 	if(locale == NULL)
 		context.multibyte = false;
 	else {
-		context.multibyte = (xlibconf() & ConfigMultibyte && MB_CUR_MAX > 1);
+		context.multibyte = (xlibconf() & ConfigMultibyte) && MB_CUR_MAX > 1;
 		printf("Locale: %s\n", locale);
 		}
-	printf("Multibyte: %s\n", trueFalse(context.multibyte));
+	printf("Multibyte enabled: %s\n", trueFalse(context.multibyte));
 
 	// Convert any "\n", "\t", or "\0" in string to a newline, tab, or null.
 	context.len = slen = strconv(str1, false);
@@ -230,7 +225,7 @@ Usage:
 	// Print string in visible form.
 	fputs("String: '", stdout);
 	if(slen > 0)
-		fvizs(str1, slen, stdout, true);
+		fvizstr(str1, slen, stdout, true);
 	printf("' (%lu)\n", slen);
 
 	// Loop through the patterns.
@@ -239,7 +234,7 @@ Usage:
 		plen = strconv(pat = *argv++, true);
 		fputs("----- Pattern: /", stdout);
 		if(plen > 0)
-			fvizs(pat, plen, stdout, true);
+			fvizstr(pat, plen, stdout, true);
 		printf("/\n  Compilation: xreg%scomp(..., %.4X)", nFuncs ? "n" : "", cflags);
 		if((status = (nFuncs ? xregncomp(&re, pat, plen, cflags) : xregcomp(&re, pat, cflags))) != 0) {
 			xregerror(status, &re, wkbuf, sizeof(wkbuf));
@@ -306,7 +301,7 @@ Usage:
 				for(grp = 0; grp <= re.re_nsub; ++grp) {
 					printf("\tGroup %lu: '", grp);
 					if((mlen = match->rm_eo - match->rm_so) > 0)
-						fvizs(str1 + match->rm_so, mlen, stdout, true);
+						fvizstr(str1 + match->rm_so, mlen, stdout, true);
 					printf("' (%d-%d)\n", match->rm_so, match->rm_eo);
 					++match;
 					}

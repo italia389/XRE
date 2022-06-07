@@ -1,6 +1,6 @@
 // compile.c - XRE regexp compiler.
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -47,7 +47,7 @@ static int addTag(fork_t child, memhdr_t *mem, ast_node_t *node, int tag_id) {
 	ast_cat_t *cnode;
 	ast_node_t **pnode1, **pnode2;
 
-	DPrint((stderr, "add_tag: %s, tag %d\n", child == leftfork ? "left" : "right", tag_id));
+	DPrintf((stderr, "add_tag: %s, tag %d\n", child == leftfork ? "left" : "right", tag_id));
 
 	if((cnode = mem_alloc(mem, sizeof(*cnode))) == NULL)
 		return REG_ESPACE;
@@ -82,7 +82,7 @@ static void regsetPurge(int *regset, tnfa_t *tnfa, int tag) {
 	for(i = 0; regset[i] >= 0; ++i) {
 		int id = regset[i] / 2;
 		bool start = !(regset[i] % 2);
-		DPrint((stderr, "  Using tag %d for %s offset of submatch %d\n", tag, start ? "start" : "end", id));
+		DPrintf((stderr, "  Using tag %d for %s offset of submatch %d\n", tag, start ? "start" : "end", id));
 		if(start)
 			tnfa->submatch_data[id].so_tag = tag;
 		else
@@ -128,7 +128,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 	tag_states_t *saved_states;
 	tag_direction_t direction = TagMinimize;
 
-	DPrint((stderr, "add_tags: begin %s pass\n", firstPass ? "first" : "second"));
+	DPrintf((stderr, "add_tags: begin %s pass\n", firstPass ? "first" : "second"));
 	if(!firstPass) {
 		tnfa->end_tag = 0;
 		tnfa->minimal_tags[0] = -1;
@@ -210,7 +210,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 					case AST_Lit:
 						{ast_lit_t *lit = node->obj;
 						if(!IsSpecial(lit) || IsBackref(lit)) {
-							DPrint((stderr, "Literal %d-%d\n", (int) lit->code_min,
+							DPrintf((stderr, "Literal %d-%d\n", (int) lit->code_min,
 							 (int) lit->code_max));
 							if(regset[0] >= 0) {
 
@@ -222,7 +222,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 										goto Retn;
 									tnfa->tag_directions[tag] = direction;
 									if(minimal_tag >= 0) {
-										DPrint((stderr, "Minimal %d, %d\n", minimal_tag,
+										DPrintf((stderr, "Minimal %d, %d\n", minimal_tag,
 										 tag));
 										add_min_tag(tnfa, tag, &minimal_tag);
 										++num_minimals;
@@ -230,11 +230,11 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 									regsetPurge(regset, tnfa, tag);
 									}
 								else {
-									DPrint((stderr, "  num_tags = 1\n"));
+									DPrintf((stderr, "  num_tags = 1\n"));
 									node->num_tags = 1;
 									}
 
-								DPrint((stderr, "  ++num_tags\n"));
+								DPrintf((stderr, "  ++num_tags\n"));
 								regset[0] = -1;
 								tag = next_tag;
 								++num_tags;
@@ -251,7 +251,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 						ast_node_t *left = cat->left;
 						ast_node_t *right = cat->right;
 						int reserved_tag = -1;
-						DPrint((stderr, "Catenation, next_tag = %d\n", next_tag));
+						DPrintf((stderr, "Catenation, next_tag = %d\n", next_tag));
 
 						// After processing right child.
 						StackPushR(stack, voidptr, node);
@@ -263,12 +263,12 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 
 						// After processing left child.
 						StackPushR(stack, int, next_tag + left->num_tags);
-						DPrint((stderr, "  Pushing %d for after left\n",
+						DPrintf((stderr, "  Pushing %d for after left\n",
 						 next_tag + left->num_tags));
 						if(left->num_tags > 0 && right->num_tags > 0) {
 
 							// Reserve the next tag to the right child.
-							DPrint((stderr, "  Reserving next_tag %d to right child\n", next_tag));
+							DPrintf((stderr, "  Reserving next_tag %d to right child\n", next_tag));
 							reserved_tag = next_tag;
 							++next_tag;
 							}
@@ -283,7 +283,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 						break;
 					case AST_Iter:
 						{ast_iter_t *iter = node->obj;
-						DPrint((stderr, "Iteration\n"));
+						DPrintf((stderr, "Iteration\n"));
 						if(firstPass) {
 							StackPushR(stack, int, regset[0] >= 0 || iter->minimal);
 							}
@@ -308,14 +308,14 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 #endif
 								 direction;
 								if(minimal_tag >= 0) {
-									DPrint((stderr, "Minimal %d, %d\n", minimal_tag, tag));
+									DPrintf((stderr, "Minimal %d, %d\n", minimal_tag, tag));
 									add_min_tag(tnfa, tag, &minimal_tag);
 									++num_minimals;
 									}
 								regsetPurge(regset, tnfa, tag);
 								}
 
-							DPrint((stderr, "  ++num_tags\n"));
+							DPrintf((stderr, "  ++num_tags\n"));
 							regset[0] = -1;
 							tag = next_tag;
 							++num_tags;
@@ -340,7 +340,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 							right_tag = next_tag;
 							}
 
-						DPrint((stderr, "Union\n"));
+						DPrintf((stderr, "Union\n"));
 
 						// After processing right child.
 						StackPushR(stack, int, right_tag);
@@ -370,14 +370,14 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 									goto Retn;
 								tnfa->tag_directions[tag] = direction;
 								if(minimal_tag >= 0) {
-									DPrint((stderr, "Minimal %d, %d\n", minimal_tag, tag));
+									DPrintf((stderr, "Minimal %d, %d\n", minimal_tag, tag));
 									add_min_tag(tnfa, tag, &minimal_tag);
 									++num_minimals;
 									}
 								regsetPurge(regset, tnfa, tag);
 								}
 
-							DPrint((stderr, "  ++num_tags\n"));
+							DPrintf((stderr, "  ++num_tags\n"));
 							regset[0] = -1;
 							tag = next_tag;
 							++num_tags;
@@ -419,9 +419,9 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 						minimal_tag = enter_tag;
 					}
 
-				DPrint((stderr, "After iteration\n"));
+				DPrintf((stderr, "After iteration\n"));
 				if(!firstPass) {
-					DPrint((stderr, "  Setting direction to %s\n", minimal ? "minimize" : "maximize"));
+					DPrintf((stderr, "  Setting direction to %s\n", minimal ? "minimize" : "maximize"));
 					direction = minimal ? TagMinimize : TagMaximize;
 					}
 				}
@@ -429,22 +429,22 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 			case ATAfterCatLeft:
 				{int new_tag = xstack_pop_int(stack);
 				next_tag = xstack_pop_int(stack);
-				DPrint((stderr, "After cat left, tag = %d, next_tag = %d\n", tag, next_tag));
+				DPrintf((stderr, "After cat left, tag = %d, next_tag = %d\n", tag, next_tag));
 				if(new_tag >= 0) {
-					DPrint((stderr, "  Setting tag to %d\n", new_tag));
+					DPrintf((stderr, "  Setting tag to %d\n", new_tag));
 					tag = new_tag;
 					}
 				}
 				break;
 			case ATAfterCatRight:
-				DPrint((stderr, "After cat right\n"));
+				DPrintf((stderr, "After cat right\n"));
 				node = xstack_pop_voidptr(stack);
 				if(firstPass)
 					node->num_tags = ((ast_cat_t *) node->obj)->left->num_tags
 					 + ((ast_cat_t *) node->obj)->right->num_tags;
 				break;
 			case ATAfterUnionLeft:
-				DPrint((stderr, "After union left\n"));
+				DPrintf((stderr, "After union left\n"));
 
 				// Lift the bottom of the 'regset' array so that when processing the right operand the items
 				// currently in the array are invisible.  The original bottom was saved at ATUnion and will be
@@ -456,7 +456,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 				{int added_tags, leftTag, rightTag;
 				ast_node_t *left = xstack_pop_voidptr(stack);
 				ast_node_t *right = xstack_pop_voidptr(stack);
-				DPrint((stderr, "After union right\n"));
+				DPrintf((stderr, "After union right\n"));
 				node = xstack_pop_voidptr(stack);
 				added_tags = xstack_pop_int(stack);
 				if(firstPass) {
@@ -484,7 +484,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 							goto Retn;
 						tnfa->tag_directions[rightTag] = TagMaximize;
 						}
-					DPrint((stderr, "  num_tags += 2\n"));
+					DPrintf((stderr, "  num_tags += 2\n"));
 					num_tags += 2;
 					}
 				direction = TagMaximize;
@@ -499,13 +499,13 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 	if(!firstPass) {
 		regsetPurge(regset, tnfa, tag);
 		if(minimal_tag >= 0) {
-			DPrint((stderr, "Minimal %d, %d\n", minimal_tag, tag));
+			DPrintf((stderr, "Minimal %d, %d\n", minimal_tag, tag));
 			add_min_tag(tnfa, tag, &minimal_tag);
 			++num_minimals;
 			}
 		}
 
-	DPrint((stderr, "add_tags: %s pass complete.  num_tags: %d, num_minimals: %d\n",
+	DPrintf((stderr, "add_tags: %s pass complete.  num_tags: %d, num_minimals: %d\n",
 	 firstPass ? "first" : "second", num_tags, num_minimals));
 	assert(tree->num_tags == num_tags);
 	tnfa->end_tag = tnfa->num_tags = num_tags;
@@ -665,7 +665,7 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 		ast_node_t *node;
 		expand_ast_symbol_t symbol;
 
-		DPrint((stderr, "pos_add %d\n", pos_add));
+		DPrintf((stderr, "pos_add %d\n", pos_add));
 
 		symbol = (expand_ast_symbol_t) xstack_pop_int(stack);
 		node = xstack_pop_voidptr(stack);
@@ -710,7 +710,7 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 						if(iter->min > 1 || iter->max > 1)
 							pos_add = 0;
 						++iter_depth;
-						DPrint((stderr, "iter\n"));
+						DPrintf((stderr, "iter\n"));
 						}
 						break;
 					default:
@@ -735,7 +735,7 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 
 						// Remove tags from all but the last copy.
 						flags = ((j + 1 < iter->min) ? CopyRemoveTags : CopyMaximizeFirstTag);
-						DPrint((stderr, "  iter copy %d, pos_add %d, flags %d\n", j, pos_add, flags));
+						DPrintf((stderr, "  iter copy %d, pos_add %d, flags %d\n", j, pos_add, flags));
 						pos_add_save = pos_add;
 						if((status = copyAST(mem, stack, iter->arg, flags, &pos_add, tag_directions,
 						 &copy, &max_pos)) != REG_OK)
@@ -826,7 +826,7 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 		}
 
 	// 'max_pos' should never be larger than '*position' if the above code works.
-	DPrint((stderr, "Setting *position to %d + %d = %d, max_pos %d\n",
+	DPrintf((stderr, "Setting *position to %d + %d = %d, max_pos %d\n",
 	 *position, pos_add_total, *position + pos_add_total, max_pos));
 	*position += pos_add_total;
 	assert(max_pos <= *position);
@@ -1316,7 +1316,7 @@ static int makeTrans(pos_and_tags_t *p1, pos_and_tags_t *p2, tnfa_transition_t *
 					// optimization cannot be used (it will break bracket expressions) unless I figure out a
 					// way to detect it here.
 					if(trans->state_id == p2->position) {
-						DPrint((stderr, "*"));
+						DPrintf((stderr, "*"));
 						break;
 						}
 					++trans;
@@ -1435,7 +1435,7 @@ static int makeTrans(pos_and_tags_t *p1, pos_and_tags_t *p2, tnfa_transition_t *
 				if(trans->assertions & AssertBackref)
 					fprintf(stderr, ", backref %d", trans->u.backref);
 				else if(trans->u.class)
-					DPrint((stderr, ", class %ld", (long) trans->u.class));
+					DPrintf((stderr, ", class %ld", (long) trans->u.class));
 				if(trans->neg_classes)
 					fprintf(stderr, ", neg_classes %p", trans->neg_classes);
 				if(trans->params) {
@@ -1581,7 +1581,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	parse_ctx.cur_max = XRE_MB_CUR_MAX;
 
 	// Parse the RE string pattern.
-	DPrint((stderr, "compile_pat: parsing '%.*" StrF "'\n", (int) n, pat));
+	DPrintf((stderr, "=====\ncompile_pat: parsing '%.*" StrF "'\n", (int) n, pat));
 	if((status = parsePat(&parse_ctx)) != REG_OK)
 		goto ErrExit;
 
@@ -1611,7 +1611,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	// Set up tags for submatch addressing.  If REG_NOSUB is set and the RE does not have back references,
 	// this can be skipped.
 	if(!(cflags & REG_NOSUB) || tnfa->pflags & PropHaveBackrefs) {
-		DPrint((stderr, "compile_pat: setting up tags\n"));
+		DPrintf((stderr, "=====\ncompile_pat: setting up tags\n"));
 
 		// Figure out how many tags we will need -- addTags(), first pass.
 		if((status = addTags(NULL, stack, tree, tnfa)) != REG_OK)
@@ -1653,7 +1653,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	 (tree = ast_newCat(mem, tmp_ast_l, tmp_ast_r)) == NULL)
 		ErrorExit(REG_ESPACE);
 
-	DPrint((stderr, "Number of states: %d\n", parse_ctx.position));
+	DPrintf((stderr, "Number of states: %d\n", parse_ctx.position));
 
 	// Prepare to convert AST tree to TNFA.
 	if((status = computeNFL(mem, stack, tree)) != REG_OK)
@@ -1677,7 +1677,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	tnfa->num_transitions = add;
 
 	// Ready... convert tree.
-	DPrint((stderr, "Converting to TNFA:\n"));
+	DPrintf((stderr, "=====\nConverting to TNFA:\n"));
 	if((status = makeTNFA(tree, transitions, counts, offs)) != REG_OK)
 		goto ErrExit;
 
@@ -1686,7 +1686,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	if(XRE_MB_CUR_MAX == 1 && !tmp_ast_l->nullable) {
 		int count = 0;
 		xcint_t k, lastk;
-		DPrint((stderr, "Characters that can start a match:"));
+		DPrintf((stderr, "Characters that can start a match:"));
 		if((tnfa->firstpos_chars = calloc(256, sizeof(char))) == NULL)
 			ErrorExit(REG_ESPACE);
 		for(p = tree->firstpos; p->position >= 0; ++p) {
@@ -1710,7 +1710,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 #endif
 		// Check if exactly one character found.
 		if(count == 1) {
-			DPrint((stderr, "first char must be %d\n", lastk));
+			DPrintf((stderr, "first char must be %d\n", lastk));
 			tnfa->first_char = lastk;
 			free(tnfa->firstpos_chars);
 			tnfa->firstpos_chars = NULL;
