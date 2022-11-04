@@ -44,7 +44,7 @@ static int towide(wchar_t *wpat, const char *pat, size_t *plen) {
 		{const char *str, *strz;
 		wchar_t *wstr = wpat;
 
-		strz = (str = (const char *) pat) + len;
+		strz = (str = pat) + len;
 		while(str < strz)
 			*wstr++ = *str++;
 		*wstr = L'\0';
@@ -80,7 +80,7 @@ Done:
 		*plen = wcptr - wpat;
 		}
 #endif // EnableMultibyte
-	return REG_OK;
+	return 0;
 	}
 #endif // EnableWChar
 
@@ -89,7 +89,7 @@ int xregncomp(regex_t *preg, const char *pat, size_t len, int cflags) {
 #if EnableWChar
 	wchar_t wpat[len + 1];
 
-	if((status = towide(wpat, pat, &len)) == REG_OK)
+	if((status = towide(wpat, pat, &len)) == 0)
 		status = compilePat(preg, wpat, len, cflags);
 #else
 	status = compilePat(preg, (const xchar_t *) pat, len, cflags);
@@ -122,32 +122,37 @@ void xregfree(regex_t *preg) {
 // Error message strings for error codes listed in 'xre.h'.  This list needs to be in sync with the codes listed there,
 // naturally.
 static const char *error_messages[] = {
-	"No error",					// REG_OK
-	"Match failed",					// REG_NOMATCH
-	"Invalid regular expression",			// REG_BADPAT
-	"Unknown collating element",			// REG_ECOLLATE
-	"Unknown character class name",			// REG_ECTYPE
-	"Trailing backslash invalid",			// REG_EESCAPE
-	"Invalid back reference",			// REG_ESUBREG
-	"Brackets '[ ]' not balanced",			// REG_EBRACK
-	"Parentheses '( )' not balanced",		// REG_EPAREN
-	"Braces '{ }' not balanced",			// REG_EBRACE
-	"Invalid repetition count(s) in '{ }'",		// REG_BADBR
-	"Invalid character range in '[ ]'",		// REG_ERANGE
-	"Out of memory",				// REG_ESPACE
-	"Invalid use of repetition operator",		// REG_BADRPT
-	"Empty (sub)expression",			// REG_EMPTY
-	"Invalid hexadecimal value",			// REG_EHEX
-	"Invalid multibyte character in string",	// REG_STRCHAR
-	"Invalid multibyte character in pattern",	// REG_PATCHAR
-	"Invalid approximate matching parameter(s)",	// REG_EPARAM
-	"Unsupported element(s) in reversed pattern"	// REG_EREGREV
+	NULL,
+	"Match failed",						// REG_NOMATCH
+	"Invalid regular expression",				// REG_BADPAT
+	"Unknown collating element",				// REG_ECOLLATE
+	"Unknown character class name",				// REG_ECTYPE
+	"Trailing backslash invalid",				// REG_EESCAPE
+	"Invalid back reference",				// REG_ESUBREG
+	"Brackets '[ ]' not balanced",				// REG_EBRACK
+	"Parentheses '( )' not balanced",			// REG_EPAREN
+	"Braces '{ }' not balanced",				// REG_EBRACE
+	"Invalid repetition count(s) in '{ }'",			// REG_BADBR
+	"Invalid character range in '[ ]'",			// REG_ERANGE
+	"Out of memory",					// REG_ESPACE
+	"Invalid use of repetition operator",			// REG_BADRPT
+	"Empty (sub)expression",				// REG_EMPTY
+	"Invalid hexadecimal value",				// REG_EHEX
+	"Maximum match offset exceeded",			// REG_MAXOFF
+	"Invalid multibyte character in string",		// REG_STRCHAR
+	"Invalid multibyte character in pattern",		// REG_PATCHAR
+	"Cannot reverse back reference(s) in pattern",		// REG_EREGREV
+	"Invalid approximate matching parameter(s)"		// REG_EPARAM
 	};
 
-// Return an error message like strerror(), but in a thread safe manner.
+// Return an error message like strerror(), but in a thread-safe manner as long as "errcode" is valid.
 const char *xregmsg(int errcode) {
+	static char numBuf[sizeof(int) * 3];
 
-	return (errcode >= 0 && errcode < (int) elementsof(error_messages)) ? error_messages[errcode] : "Unknown error";
+	if(errcode > 0 && errcode < (int) elementsof(error_messages))
+		return error_messages[errcode];
+	sprintf(numBuf, "Unknown exception code %d", errcode);
+	return numBuf;
 	}
 
 size_t xregerror(int errcode, const regex_t *preg, char *errbuf, size_t errbuf_size) {
@@ -170,38 +175,45 @@ size_t xregerror(int errcode, const regex_t *preg, char *errbuf, size_t errbuf_s
 // RE matching functions.
 
 // Fills the POSIX regmatch_t array from the TNFA tag and match endpoint values.
-void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnfa, int *tagpos, int match_eo) {
+void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnfa, regoff_t *tagpos, regoff_t match_eo) {
 	submatch_data_t *submatch_data;
 	regmatch_t *pmatchi;
 	unsigned i;
-	int *parent;
+	int *parents;
 
-#ifdef XRE_Debug
-	fprintf(stderr, "fillMatch(): nmatch %lu, cflags %.4X, match_eo %d\n", nmatch, cflags, match_eo);
-	if(tnfa->num_submatches > 0) {
+#if XRE_Debug
+	fprintf(stderr, "fillMatch(): nmatch %lu, cflags %.4x, match_eo %ld, num_tags %d, tagpos %p\n",
+	 nmatch, cflags, match_eo, tnfa->num_tags, tagpos);
+	if(tagpos != NULL) {
+		regoff_t *pos, *posz;
+		posz = (pos = tagpos) + tnfa->num_tags;
+		i = 0;
+		while(pos < posz)
+			fprintf(stderr, "t%u = %ld\n", i++, *pos++);
+		}
+	if(tnfa->num_submatches > 0 && tnfa->num_tags > 0) {
 		submatch_data_t *sd, *sdz;
 		sdz = (sd = tnfa->submatch_data) + tnfa->num_submatches;
 		i = 0;
 		do {
-			fprintf(stderr, "submatch_data[%u] = {so_tag = %d, eo_tag = %d, parents = ",
-			 i, sd->so_tag, sd->eo_tag);
+			fprintf(stderr, "submatch_data[%u] = {so_tag %d = %ld, eo_tag %d = %ld, parents = ", i,
+			 sd->so_tag, tagpos == NULL ? (regoff_t) -1 : tagpos[sd->so_tag],
+			 sd->eo_tag, tagpos == NULL ? (regoff_t) -1 : tagpos[sd->eo_tag]);
 			if(sd->parents == NULL)
 				fputs("NULL}\n", stderr);
 			else {
 				printTags("", sd->parents, -1);
 				fputs("}\n", stderr);
 				}
+			++i;
 			} while(++sd < sdz);
 		}
-	fprintf(stderr, "tagpos (%p)", tagpos);
-	printTags("", tagpos, tnfa->num_tags);
-	fputc('\n', stderr);
 #endif
 	i = 0;
 	if(match_eo >= 0 && !(cflags & REG_NOSUB)) {
 
 		// Construct submatch offsets from the tag positions (tagpos).
-		DPrintf((stderr, "end tag = t%d = %d\n", tnfa->end_tag, match_eo));
+		DPrintf((stderr, "end tag = t%d = %ld\n", tnfa->end_tag, match_eo));
 		submatch_data = tnfa->submatch_data;
 		pmatchi = pmatch;
 		while(i < tnfa->num_submatches && i < nmatch) {
@@ -214,14 +226,14 @@ void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnf
 			if(pmatchi->rm_so == -1 || pmatchi->rm_eo == -1)
 				pmatchi->rm_so = pmatchi->rm_eo = -1;
 
-			DPrintf((stderr, "pmatch[%d] = {t%d = %d, t%d = %d}\n", i,
-			 submatch_data->so_tag, pmatchi->rm_so, submatch_data->eo_tag, pmatchi->rm_eo));
+			DPrintf((stderr, "pmatch[%d] = {t%d = %ld, t%d = %ld}\n", i, submatch_data->so_tag, pmatchi->rm_so,
+			 submatch_data->eo_tag, pmatchi->rm_eo));
 			++i;
 			++submatch_data;
 			++pmatchi;
 			}
 
-		// Reset all submatches that are not entirely within all of their parent submatches.
+		// Reset (invalidate) all submatches that are not entirely within all of their parent submatches.
 		i = 0;
 		submatch_data = tnfa->submatch_data;
 		pmatchi = pmatch;
@@ -229,22 +241,22 @@ void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnf
 			if(i >= tnfa->num_submatches)
 				pmatchi->rm_so = pmatchi->rm_eo = -1;
 			else {
-				DPrintf((stderr, "reset check %d: rm_so %d, rm_eo %d\n", i, pmatchi->rm_so, pmatchi->rm_eo));
+				DPrintf((stderr, "reset check %d: rm_so %ld, rm_eo %ld\n", i, pmatchi->rm_so, pmatchi->rm_eo));
 				if(pmatchi->rm_eo == -1)
 					assert(pmatchi->rm_so == -1);
 				assert(pmatchi->rm_so <= pmatchi->rm_eo);
 
-				if((parent = submatch_data->parents) != NULL)
-					while(*parent >= 0) {
-						DPrintf((stderr, "pmatch[%d] parent is %d\n", i, *parent));
-						if(pmatchi->rm_so < pmatch[*parent].rm_so ||
-						 pmatchi->rm_eo > pmatch[*parent].rm_eo)
+				if((parents = submatch_data->parents) != NULL)
+					while(*parents >= 0) {
+						DPrintf((stderr, "pmatch[%d] parent is %d\n", i, *parents));
+						if(pmatchi->rm_so < pmatch[*parents].rm_so ||
+						 pmatchi->rm_eo > pmatch[*parents].rm_eo)
 							pmatchi->rm_so = pmatchi->rm_eo = -1;
-						++parent;
+						++parents;
 						}
 				++submatch_data;
 				}
-			DPrintf((stderr, "reset pmatch[%d] = {%d, %d}\n", i, pmatchi->rm_so, pmatchi->rm_eo));
+			DPrintf((stderr, "reset pmatch[%d] = {%ld, %ld}\n", i, pmatchi->rm_so, pmatchi->rm_eo));
 			++i;
 			++pmatchi;
 			}
@@ -254,17 +266,6 @@ void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnf
 		pmatch[i].rm_so = pmatch[i].rm_eo = -1;
 		++i;
 		}
-	}
-
-// Return information about a compiled pattern.
-int xreginfo(const regex_t *preg) {
-	tnfa_t *tnfa = (tnfa_t *) preg->re_cpat;
-	int result = 0;
-	if(tnfa->pflags & PropHaveBackrefs)
-		result |= PatBackrefs;
-	if(tnfa->pflags & PropHaveApprox)
-		result |= PatApprox;
-	return result;
 	}
 
 // Return library configuration flags.
@@ -320,17 +321,18 @@ void xregainit(regaparams_t *params, int level) {
 	}
 #endif
 
-static int matchExact(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, size_t nmatch, regmatch_t pmatch[],
+static int matchExact(const regex_t *preg, const void *string, size_t len, xstr_t type, size_t nmatch, regmatch_t pmatch[],
  int eflags) {
-	int status, eo;
-	int *tagpos = NULL;
+	int status;
+	regoff_t eo, *tagpos = NULL;
+	const tnfa_t *tnfa = (const tnfa_t *) preg->re_data;
 
 	if(tnfa->num_tags > 0 && nmatch > 0)
 		if((tagpos = malloc(sizeof(*tagpos) * tnfa->num_tags)) == NULL)
 			return REG_ESPACE;
 
 	// Dispatch to the appropriate matcher.
-	if(tnfa->pflags & PropHaveBackrefs) {
+	if(preg->pflags & PropHaveBackref) {
 
 		// The pattern has back references; use the back reference matcher.
 		if(type == StrUser) {
@@ -340,10 +342,10 @@ static int matchExact(const tnfa_t *tnfa, const void *string, size_t len, xstr_t
 				// The back reference matcher requires rewind and compare capabilities from the input stream.
 				return REG_BADPAT;
 			}
-		status = runBackref(tnfa, string, (ssize_t) len, type, tagpos, eflags, &eo);
+		status = runBackref(tnfa, string, len, type, tagpos, eflags, &eo);
 		}
 #if EnableApprox
-	else if(tnfa->pflags & PropHaveApprox) {
+	else if(preg->pflags & PropHaveApprox) {
 
 		// The pattern uses approximate matching; use the approximate matcher with "exact matching" as the default.
 		// Note that the nmatch and pmatch members of 'match' are ignored by runApprox() and the remaining values in the
@@ -353,25 +355,28 @@ static int matchExact(const tnfa_t *tnfa, const void *string, size_t len, xstr_t
 		regamatch_t match;
 		regaparams_t params;
 		xregainit(&params, REG_EXACT);
-		status = runApprox(tnfa, string, (ssize_t) len, type, tagpos, &match, &params, eflags, &eo);
+		status = runApprox(tnfa, string, len, type, tagpos, &match, &params, eflags, &eo);
 		}
 #endif
 	else {
 		// Exact matching and no back references; use the parallel matcher.
-		status = runParallel(tnfa, string, (ssize_t) len, type, tagpos, eflags, &eo);
+		status = runParallel(tnfa, string, len, type, tagpos, eflags, &eo);
 		}
 
-	if(status == REG_OK)
+	if(status == 0) {
+
 		// A match was found -- fill in the submatch array.
 		fillMatch(nmatch, pmatch, tnfa->cflags, tnfa, tagpos, eo);
+		}
 	if(tagpos != NULL)
 		free(tagpos);
+
 	return status;
 	}
 
 int xregnexec(const regex_t *preg, const char *string, size_t len, size_t nmatch, regmatch_t pmatch[], int eflags) {
-	tnfa_t *tnfa = (tnfa_t *) preg->re_cpat;
-	return matchExact(tnfa, string, len, (XRE_MB_CUR_MAX == 1) ? StrByte : StrMBS, nmatch, pmatch, eflags);
+
+	return matchExact(preg, string, len, (XRE_MB_CUR_MAX == 1) ? StrByte : StrMBS, nmatch, pmatch, eflags);
 	}
 
 int xregexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], int eflags) {
@@ -382,8 +387,8 @@ int xregexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t 
 #if EnableWChar
 
 int xregwnexec(const regex_t *preg, const wchar_t *string, size_t len, size_t nmatch, regmatch_t pmatch[], int eflags) {
-	tnfa_t *tnfa = (tnfa_t *) preg->re_cpat;
-	return matchExact(tnfa, string, len, StrWide, nmatch, pmatch, eflags);
+
+	return matchExact(preg, string, len, StrWide, nmatch, pmatch, eflags);
 	}
 
 int xregwexec(const regex_t *preg, const wchar_t *string, size_t nmatch, regmatch_t pmatch[], int eflags) {
@@ -394,18 +399,19 @@ int xregwexec(const regex_t *preg, const wchar_t *string, size_t nmatch, regmatc
 #endif // EnableWChar.
 
 int xreguexec(const regex_t *preg, const regusource_t *string, size_t nmatch, regmatch_t pmatch[], int eflags) {
-	tnfa_t *tnfa = (tnfa_t *) preg->re_cpat;
-	return matchExact(tnfa, string, (size_t) -1, StrUser, nmatch, pmatch, eflags);
+
+	return matchExact(preg, string, (size_t) -1, StrUser, nmatch, pmatch, eflags);
 	}
 
 #if EnableApprox
 
 // Wrapper functions for approximate regexp matching.
 
-static int matchApprox(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regamatch_t *match,
+static int matchApprox(const regex_t *preg, const void *string, size_t len, xstr_t type, regamatch_t *match,
  regaparams_t *params, int eflags) {
-	int status, eo;
-	int *tagpos = NULL;
+	int status;
+	regoff_t eo, *tagpos = NULL;
+	const tnfa_t *tnfa = (const tnfa_t *) preg->re_data;
 
 	// Check if approximate matching parameters are valid.
 	{int *pi, *piz;
@@ -418,18 +424,18 @@ static int matchApprox(const tnfa_t *tnfa, const void *string, size_t len, xstr_
 	}
 
 	// If the RE doesn't use approximate matching features and the maximum cost is zero, use the exact matcher instead.
-	if(!(tnfa->pflags & PropHaveApprox) && params->max_cost == 0)
-		return matchExact(tnfa, string, len, type, match->nmatch, match->pmatch, eflags);
+	if(!(preg->pflags & PropHaveApprox) && params->max_cost == 0)
+		return matchExact(preg, string, len, type, match->nmatch, match->pmatch, eflags);
 
 	// Back references are not supported by the approximate matcher.
-	if(tnfa->pflags & PropHaveBackrefs)
+	if(preg->pflags & PropHaveBackref)
 		return REG_ESUBREG;
 
 	// Create tag array if needed and run the matcher routine.
 	if(tnfa->num_tags > 0 && match->nmatch > 0)
 		if((tagpos = malloc(sizeof(*tagpos) * tnfa->num_tags)) == NULL)
 			return REG_ESPACE;
-	if((status = runApprox(tnfa, string, (ssize_t) len, type, tagpos, match, params, eflags, &eo)) == REG_OK)
+	if((status = runApprox(tnfa, string, len, type, tagpos, match, params, eflags, &eo)) == 0)
 		fillMatch(match->nmatch, match->pmatch, tnfa->cflags, tnfa, tagpos, eo);
 	if(tagpos != NULL)
 		free(tagpos);
@@ -437,8 +443,8 @@ static int matchApprox(const tnfa_t *tnfa, const void *string, size_t len, xstr_
 	}
 
 int xreganexec(const regex_t *preg, const char *string, size_t len, regamatch_t *match, regaparams_t *params, int eflags) {
-	tnfa_t *tnfa = (tnfa_t *) preg->re_cpat;
-	return matchApprox(tnfa, string, len, (XRE_MB_CUR_MAX == 1) ? StrByte : StrMBS, match, params, eflags);
+
+	return matchApprox(preg, string, len, (XRE_MB_CUR_MAX == 1) ? StrByte : StrMBS, match, params, eflags);
 	}
 
 int xregaexec(const regex_t *preg, const char *string, regamatch_t *match, regaparams_t *params, int eflags) {
@@ -448,9 +454,10 @@ int xregaexec(const regex_t *preg, const char *string, regamatch_t *match, regap
 
 #if EnableWChar
 
-int xregawnexec(const regex_t *preg, const wchar_t *string, size_t len, regamatch_t *match, regaparams_t *params, int eflags) {
-	tnfa_t *tnfa = (tnfa_t *) preg->re_cpat;
-	return matchApprox(tnfa, string, len, StrWide, match, params, eflags);
+int xregawnexec(const regex_t *preg, const wchar_t *string, size_t len, regamatch_t *match, regaparams_t *params,
+ int eflags) {
+
+	return matchApprox(preg, string, len, StrWide, match, params, eflags);
 	}
 
 int xregawexec(const regex_t *preg, const wchar_t *string, regamatch_t *match, regaparams_t *params, int eflags) {
@@ -461,87 +468,11 @@ int xregawexec(const regex_t *preg, const wchar_t *string, regamatch_t *match, r
 #endif // EnableWChar.
 
 int xregauexec(const regex_t *preg, const regusource_t *string, regamatch_t *match, regaparams_t *params, int eflags) {
-	tnfa_t *tnfa = (tnfa_t *) preg->re_cpat;
-	return matchApprox(tnfa, string, (size_t) -1, StrUser, match, params, eflags);
+
+	return matchApprox(preg, string, (size_t) -1, StrUser, match, params, eflags);
 	}
 
 #endif // EnableApprox.
-
-#if EnableReverse
-
-// Copy an XRE regular expression from 'pat' to 'revpat' with all atoms reversed and return status code.  'revpat' is assumed
-// to point to a buffer that is at least "length of pat + 1".  If REG_ENHANCED is specified in 'cflags', 'pat' is assumed to
-// point to an Enhanced Extended RE, otherwise an Extended RE.  Note that the converted RE can subsequently be compiled with
-// the REG_REVERSED flag and used for backward matches as long as it does not contain back references or stand-alone options.
-int xregnrev(char *revpat, const char *pat, size_t len, int cflags) {
-	int status;
-#if EnableWChar
-	xchar_t wpat[len + 1];
-
-	// Convert RE pattern to wide characters and create temporary wide buffer in which to place reversed pattern.
-	if((status = towide(wpat, pat, &len)) == REG_OK) {
-		xchar_t *wpat1 = wpat;
-		xchar_t revpat0[len + 1];
-		xchar_t *revpat1 = revpat0 + len;
-		*revpat1 = L'\0';
-		status = grpcpy(&revpat1, (const xchar_t **) &wpat1, cflags | CompTopLevel);
-		if(status != REG_OK)
-			*revpat = '\0';
-		else {
-			// Reversal succeeded.  Convert wide result buffer back to multibyte.
-			assert(revpat1 == revpat0);
-#if EnableMultibyte
-			if(XRE_MB_CUR_MAX == 1)
-#endif
-				{xchar_t *wstr, *wstrz;
-				char *str = revpat;
-				wstrz = (wstr = revpat1) + len;
-				while(wstr < wstrz)
-					*str++ = *wstr++;
-				*str = '\0';
-				}
-#if EnableMultibyte
-			else if(wcstombs(revpat, revpat1, len + 1) == (size_t) -1) {
-				DPrintf((stderr, "wcstombs: error %d: %s.\n", errno, strerror(errno)));
-				*revpat = '\0';
-				status = REG_BADPAT;
-				}
-#endif // EnableMultibyte
-			}
-		}
-#else // !EnableWChar
-	xchar_t *revpat1 = revpat + len;
-	*revpat1 = '\0';
-	if((status = grpcpy(&revpat1, (const char **) &pat, cflags | CompTopLevel)) != REG_OK)
-		*revpat = '\0';
-	else
-		assert(revpat1 == revpat);
-#endif
-	return status;
-	}
-
-int xregrev(char *revpat, const char *pat, int cflags) {
-
-	return xregnrev(revpat, pat, strlen(pat), cflags);
-	}
-
-#if EnableWChar
-int xregwnrev(wchar_t *revpat, const wchar_t *pat, size_t len, int cflags) {
-	int status;
-	wchar_t *revpat1 = revpat + len;
-	*revpat1 = L'\0';
-	if((status = grpcpy(&revpat1, &pat, cflags | CompTopLevel)) != REG_OK)
-		*revpat = L'\0';
-	return status;
-	}
-
-int xregwrev(wchar_t *revpat, const wchar_t *pat, int cflags) {
-
-	return xregwnrev(revpat, pat, wcslen(pat), cflags);
-	}
-#endif
-
-#endif // EnableReverse
 
 #ifdef __cplusplus
 	}

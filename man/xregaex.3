@@ -4,11 +4,11 @@
 .\" "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
 .\"
 .ad l
-.TH XREGAEX 3 2022-06-04 "Ver. 1.1.0" "XRE Library Documentation"
+.TH XREGAEX 3 2022-08-18 "Ver. 1.2" "XRE Library Documentation"
 .nh \" Turn off hyphenation.
 .SH NAME
 \fBxregaexec\fR, \fBxreganexec\fR, \fBxregawexec\fR, \fBxregawnexec\fR, \fBxregauexec\fR,
-\fBxregainit\fR - extended regular expression (XRE) approximate matching routines
+\fBxregainit\fR - eXtended Regular Expression (XRE) approximate matching routines.
 .SH SYNOPSIS
 \fB#include "xre.h"\fR
 .HP 2
@@ -43,11 +43,11 @@ Approximate matching is accomplished either by specifying special parameters in 
 xre_format(7)) and compiling it with the REG_APPROX flag as described in xregex(3), or by using the
 \fBxregaexec\fR() routine (or both).  \fBxregaexec\fR() operates like \fBxregexec\fR(), except that it can
 perform approximate matching, and a few of the arguments are different.  The \fInmatch\fR and \fIpmatch\fR
-arguments are replaced by a \fImatch\fR argument, which is a pointer to a \fIregamatch_t\fR structure.  A
+arguments are replaced by a \fImatch\fR argument, which is a pointer to a \fBregamatch_t\fR structure.  A
 \fIparams\fR argument is also specified, which is a pointer to a structure containing the approximate matching
 parameters.
 .PP
-The \fIregamatch_t\fR structure is defined as follows:
+The \fBregamatch_t\fR structure is defined as follows:
 .nf
 .sp
 .PD 0
@@ -73,7 +73,7 @@ integer members are the results of a successful match, and are returned by the f
 In addition to the match structure, approximate matching parameters must be specified.  These parameters apply
 to the entire ERE and are used as default parameters.  They can optionally be overridden in all or a portion
 of the ERE by specifying parameters directly in the pattern, as explained in xre_format(7).  The default
-parameters are specified in a \fIregaparams_t\fR structure, and a pointer to this structure is passed to
+parameters are specified in a \fBregaparams_t\fR structure, and a pointer to this structure is passed to
 \fBxregaexec\fR() via the \fIparams\fR argument.  The structure is defined as follows:
 .nf
 .sp

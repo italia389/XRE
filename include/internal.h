@@ -16,14 +16,14 @@
 #include <wctype.h>
 #endif
 
-#ifdef XRE_Debug
+#if XRE_Debug
 #include <stdio.h>
-#define DPrintf(msg) fprintf msg, fflush(stderr)
+#define DPrintf(msg)	fprintf msg
 #else
 #define DPrintf(msg)
 #endif
 
-#define elementsof(x) (sizeof(x) / sizeof(x[0]))
+#define elementsof(x)	(sizeof(x) / sizeof(*x))
 
 #if EnableWChar && EnableMultibyte
 #define UseMBState
@@ -34,6 +34,7 @@ extern "C" {
 #endif
 
 // Define the character types and functions.
+#define XRE_LEN_MAX		LONG_MAX	// Maximum length of a string to match on.
 #if EnableWChar
 
 // Wide characters.
@@ -85,8 +86,8 @@ extern "C" {
 #define xisupper		isupper
 #define xisxdigit		isxdigit
 
-#define xtolower(c)		(xcint_t)(tolower(c))
-#define xtoupper(c)		(xcint_t)(toupper(c))
+#define xtolower(c)		(xint_t)(tolower(c))
+#define xtoupper(c)		(xint_t)(toupper(c))
 #define xstrlen			strlen
 #define xstrchr			strchr
 #define xmemcpy			memcpy
@@ -109,7 +110,7 @@ typedef wctype_t xctype_t;
 #else
 
 // Define our own versions of iswctype() and wctype().
-typedef int (*xctype_t)(xcint_t);
+typedef int (*xctype_t)(xint_t);
 #define xisctype(c, type)	((type)(c))
 extern xctype_t xctype(const char *name);
 #endif
@@ -125,7 +126,7 @@ typedef enum {StrByte, StrWide, StrMBS, StrUser} xstr_t;
 #define Max(a, b) (((a) >= (b)) ? (a) : (b))
 #define Min(a, b) (((a) <= (b)) ? (a) : (b))
 
-// Define StrF to the correct printf formatter for strings.
+// Define StrF to the correct printf formatting specification for strings.
 #if EnableWChar
 #define StrF			"ls"
 #else
@@ -140,8 +141,8 @@ typedef struct {
 
 // TNFA transition type.  A TNFA state is an array of transitions; the terminator is a transition with NULL 'state'.
 typedef struct tnfa_transition {
-	xcint_t code_min;		// Range of accepted characters.
-	xcint_t code_max;
+	xint_t code_min;		// Range of accepted characters.
+	xint_t code_max;
 	struct tnfa_transition *state;	// Pointer to the destination state.
 	int state_id;			// ID number of the destination state.
 	int *tags;			// -1 terminated array of tag IDs (or NULL).
@@ -172,19 +173,15 @@ typedef enum {
 	TagMaximize = 1
 	} tag_direction_t;
 
-// RE property flags.
-#define PropHaveApprox		0x0001	// RE contains approximate matching features.
-#define PropHaveBackrefs	0x0002	// RE contains back reference(s).
-
 // Special approximate matching parameter values.
 #define ParamDefault		-2
 #define ParamUnset		-1
 
 // Instructions to compute submatch register values from tag values after a successful match.
 typedef struct submatch_data {
-	int so_tag;			// Tag that gives the value for rm_so (submatch start offset).
-	int eo_tag;			// Tag that gives the value for rm_eo (submatch end offset).
-	int *parents;			// -1 terminated list of submatches (indices) this submatch is contained in.
+	int so_tag;				// Tag that gives the value for rm_so (submatch start offset).
+	int eo_tag;				// Tag that gives the value for rm_eo (submatch end offset).
+	int *parents;				// -1 terminated list of submatches (indices) this submatch is contained in.
 	} submatch_data_t;
 
 // TNFA definition.
@@ -199,37 +196,32 @@ typedef struct {
 	int first_char;
 	tag_direction_t *tag_directions;	// Array of tag_direction_t enumerators, using tag_id as index.
 	int num_tags;				// Total number of tags (minimal and maximal).
-	int *minimal_tags;			// -1 terminated array of minimal tag ids.
+	int *minimal_tags;			// -1 terminated array of minimal tag IDs.
 	int num_minimals;			// Number of minimal tags.
 	int end_tag;				// End tag ID of whole RE match.
 	int num_states;				// Number of states in the TNFA.
-	int cflags;				// RE compilation flags.
-	int pflags;				// RE property flags.
+	int cflags;				// Compilation flags.
 	int params_depth;
 	} tnfa_t;
 
-#ifdef XRE_Debug
+#if XRE_Debug
 extern void print_codes_and_tags(int code_min, int code_max, int *tags);
 #if EnableApprox
 extern void printParams(bool printLabel, regaparams_t *params);
 #endif
 extern void printTags(char *label, int *tags, int count);
 #endif
-extern int compilePat(regex_t *preg, const xchar_t *regex, size_t n, int cflags);
-extern void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnfa, int *tags, int match_eo);
+extern int compilePat(regex_t *preg, const xchar_t *regex, size_t len, int cflags);
+extern void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnfa, regoff_t *tagpos, regoff_t match_eo);
 extern void refree(regex_t *preg);
-extern int runBackref(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, int *match_tags, int eflags,
- int *match_end_ofs);
-extern int runParallel(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, int *match_tags, int eflags,
- int *match_end_ofs);
+extern int runBackref(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, int eflags,
+ regoff_t *match_end_off);
+extern int runParallel(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, int eflags,
+ regoff_t *match_end_off);
 
 #if EnableApprox
-extern int runApprox(const tnfa_t *tnfa, const void *string, ssize_t len, xstr_t type, int *match_tags,
- regamatch_t *match, regaparams_t *params, int eflags, int *match_end_ofs);
-#endif
-
-#if EnableReverse
-extern int grpcpy(xchar_t **pdest, const xchar_t **psrc, int cflags);
+extern int runApprox(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, regamatch_t *match,
+ regaparams_t *params, int eflags, regoff_t *match_end_off);
 #endif
 
 #ifdef __cplusplus

@@ -4,10 +4,10 @@
 .\" "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
 .\"
 .ad l
-.TH XRE 3 2022-06-04 "Ver. 1.1.0" "XRE Library Documentation"
+.TH XRE 3 2022-08-18 "Ver. 1.2" "XRE Library Documentation"
 .nh \" Turn off hyphenation.
 .SH NAME
-\fBXRE\fR - extended regular expression library
+\fBXRE\fR - eXtended Regular Expression library.
 .SH SYNOPSIS
 .B (POSIX-ERE-compliant APIs)
 .PP
@@ -28,7 +28,7 @@ Basic Regular Expressions (BREs), which are obsolete, are not supported.
 Extended Regular Expressions (EREs), which are the modern replacement for BREs, are the default.
 .RE
 .PP
-The library's API consists of several functions.  The preferred routines are those with names beginning with
+The library\(aqs API consists of several functions.  The preferred routines are those with names beginning with
 "x".  The ones beginning with "reg" are provided for compatibility with existing code and for POSIX
 compliance; however, to take full advantage of the XRE library, the "xre.h" header and "x" versions of the
 functions should be used.
@@ -81,18 +81,12 @@ Convert an error code to a message string.
 Match a compiled regular expression against a string and reports results.
 .IP xregfree 16
 Release memory associated with a compiled regular expression.
-.IP xreginfo 16
-Obtain information about a compiled regular expression.
 .IP xregmsg 16
 Convert an error code to a message string.
 .IP xregncomp 16
 Compile a fixed-length extended regular expression string pattern.
 .IP xregnexec 16
 Match a compiled regular expression against a fixed-length string and reports results.
-.IP xregnrev 16
-Reverse a fixed-length extended regular expression string pattern.
-.IP xregrev 16
-Reverse an extended regular expression string pattern.
 .IP xreguexec 16
 Match a compiled regular expression against user-defined data and reports results.
 .IP xregwcomp 16
@@ -103,15 +97,11 @@ Match a compiled regular expression against a wide-character string and reports 
 Compile a wide-character, fixed-length extended regular expression string pattern.
 .IP xregwnexec 16
 Match a compiled regular expression against a wide-character, fixed-length string and reports results.
-.IP xregwnrev 16
-Reverse a wide-character, fixed-length extended regular expression string pattern.
-.IP xregwrev 16
-Reverse a wide-character extended regular expression string pattern.
 .IP xrevers 16
 Obtain XRE library version information.
 .RE
 .PD
 .SH SEE ALSO
-xreconf(3), xregaex(3), xregex(3), xregrev(3)
+xreconf(3), xregaex(3), xregex(3)
 .PP
 Specific function names (like \fBxregcomp\fR) for detailed routine descriptions.

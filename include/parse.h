@@ -1,6 +1,6 @@
 // parse.h - Regular expression parsing definitions, including those for abstract syntax trees (AST).
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -41,8 +41,8 @@ typedef enum {
 #define LitEmpty		-1	// Empty leaf (denotes empty string).
 #define LitAssert		-2	// Assertion leaf.
 #define LitTag			-3	// Tag leaf.
-#define LitBackref		-4	// Back reference leaf.
-#define LitParam		-5	// Approximate parameters leaf.
+#define LitBackref		-4	// Back-reference leaf.
+#define LitParam		-5	// Approximate parameters' leaf.
 
 #define IsSpecial(x) ((x)->code_min < 0)
 #define IsEmpty(x) ((x)->code_min == LitEmpty)
@@ -85,7 +85,7 @@ typedef struct {
 
 // An "iteration" node.  These are created for the "*", "+", "?", and "{m, n}" operators.
 typedef struct {
-	ast_node_t *arg;			// Subexpression to match.
+	ast_node_t *sub;			// Subexpression to match.
 	int min;				// Minimum number of consecutive matches.
 	int max;				// Maximum number of consecutive matches.
 	char minimal;				// If 0, match as many characters as possible; if 1 match as few as possible.
@@ -106,7 +106,7 @@ extern ast_node_t *ast_newIter(memhdr_t *mem, ast_node_t *arg, int min, int max,
 extern ast_node_t *ast_newUnion(memhdr_t *mem, ast_node_t *left, ast_node_t *right);
 extern ast_node_t *ast_newCat(memhdr_t *mem, ast_node_t *left, ast_node_t *right);
 
-#ifdef XRE_Debug
+#if XRE_Debug
 extern void printAST(ast_node_t *tree, const char *label);
 #endif
 
@@ -114,22 +114,25 @@ extern void printAST(ast_node_t *tree, const char *label);
 typedef struct {
 	memhdr_t *mem;				// Memory allocator.  The AST is allocated using this.
 	xstack_t *stack;			// Stack used for keeping track of regexp syntax.
-	ast_node_t *result;			// The parse result.
-	const xchar_t *re;			// The regexp to parse and its length.
-	int len;
-	const xchar_t *re_start;		// The first character of the entire regexp.
-	const xchar_t *re_end;			// The first character after the end of the regexp.
+	ast_node_t *rootnode;			// Parse result -- AST.
+	const xchar_t *re;			// Regular expression pattern to parse.
+	size_t len;				// Pattern length.
+	const xchar_t *re_start;		// First character of the entire RE.
+	const xchar_t *re_end;			// First character after the end of the RE.
 	int submatch_id;			// Current submatch ID.
 	int position;				// Current position.
-	int max_backref;			// The highest back reference, or zero if none seen so far.
+	int max_backref;			// Highest back reference number, or zero if none seen so far.
 	int cflags;				// Compilation flags.
-	int pflags;				// Property flags.  PropHaveApprox is set during parsing if applicable.
+	int pflags;				// Pattern property flags.
+	int temp_cflags;			// Temporary compilation flags.
+	int nest_level;				// Parentheses nesting level.
 	bool keepfirst;				// Capture submatch at top level?
-	int cur_max;				// The CUR_MAX in use.
+	int cur_max;				// CUR_MAX in use.
 	} parse_ctx_t;
 
 // Parses a wide character regexp pattern into a syntax tree.  Handles ERE syntax, including the XRE extensions.
 extern int parsePat(parse_ctx_t *ctx);
+extern void revAST(ast_node_t *ast);
 
 #ifdef __cplusplus
 	}

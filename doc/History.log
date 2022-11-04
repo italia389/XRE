@@ -1,139 +1,247 @@
 XRE Library RELEASE HISTORY
 
 ----------
+1.2.0	4 Nov 2022
+
+ 1. Expanded analysis and reporting of regular expression properties:
+	- created "cflags" and "pflags" members in regex_t structure which
+	  contain compilation flags and "property" flags, respectively.
+	- renamed PatBackrefs and PatApprox flags to PropHaveBackref and
+	  PropHaveApprox.
+	- created PropHaveRegical and PropHaveEscLit property flags, which
+	  indicate that a pattern contains regular expression metacharacter(s)
+	  and escaped literal character(s) (such as \n and \t), respectively.
+	- eliminated xreginfo() function.
+    Now (1), it is possible to determine if a pattern is all plain text with or
+    without escaped literal characters (such as \n and \t) by checking the
+    PropHaveRegical and PropHaveEscLit property flags of a compiled pattern; and
+    (2), both the compilation flags and property flags are available in the
+    regex_t object.
+ 2. Changed reverse-matching process:
+	- renamed REG_REVERSED compilation flag to REG_REVERSE.
+	- changed compilation routines to automatically reverse given (forward)
+	  pattern during compilation if REG_REVERSE flag specified.
+	- eliminated xregrev(), xregnrev(), xregwrev(), and xregwnrev()
+	  functions, which are no longer needed.
+    Now xregcomp() automatically reverses a pattern during compilation if
+    REG_REVERSE flag set, hence an RE pattern no longer needs to reversed before
+    compiling it.
+ 3. Fixed code so that \x hex characters are allowed inside brackets [] (as was
+    originally intended).
+ 4. Made changes to fix issue where types of regular expression match offsets
+    did not correspond with string lengths:
+	- changed regoff_t type from int to ssize_t.
+	- changed matching routines to return new REG_MAXOFF error ("Maximum
+	  match offset exceeded") if search extends beyond reach of a regoff_t
+	  type.
+ 5. Renamed xcint_t type to xint_t, which is more consistent with the wchar_t
+    and wint_t type names in the BSD Library for wide characters.
+ 6. Replaced REG_OK macro (which is not defined in the POSIX standard) with zero
+    (which is defined as the return value for successful compilation or
+    execution of a pattern) and eliminated the macro.
+ 7. Fixed bug where parsing an RE that ended in \E (such as "ab\Qc\E") caused a
+    crash because end-of-pattern was not being detected properly.
+ 8. Fixed bug where a pattern containing a negated character class (such as
+    "\L") was not being compiled properly in multibyte mode.
+ 9. Fixed bug where end-of-input was not being detected properly in certain
+    situations for multibyte strings and user data input types.
+10. Fixed bug where matching would not work properly in certain situations for
+    the user data input type if pattern contained back references.
+11. Updated man pages.
+
+----------
 1.1.0	2 Jun 2022
 
- 1. Fixed bug where pattern '[^[:blank:]]' (and shortcut '\H') matched a newline when REG_NEWLINE flag was set and REG_ANY was
-    not set.
- 2. Fixed preprocessor issue where compiling with "#define EnableApprox 0" in xre.h header caused a compilation error.
- 3. Renamed xlibvers() function to xrevers() to clarify that the function is returning version information for the XRE library.
- 4. Changed txre.c test utility to print full version information and XRE library configuration information at startup so that
-    the complete testing environment is known.
- 5. Created man pages for all XRE functions so that a relevant page can be found using a function name; for example,
-    "man xregcomp".  (This was an oversight in the previous release.)
+ 1. Fixed bug where pattern '[^[:blank:]]' (and shortcut '\H') matched a newline
+    when REG_NEWLINE flag was set and REG_ANY was not set.
+ 2. Fixed preprocessor issue where compiling with "#define EnableApprox 0" in
+    xre.h header caused a compilation error.
+ 3. Renamed xlibvers() function to xrevers() to clarify that the function is
+    returning version information for the XRE library.
+ 4. Changed txre.c test utility to print full version information and XRE
+    library configuration information at startup so that the complete testing
+    environment is known.
+ 5. Created man pages for all XRE functions so that a relevant page can be found
+    using a function name; for example, "man xregcomp".  (This was an oversight
+    in the previous release.)
 
 ----------
 1.0.0	14 Mar 2020
 
-
 *** Changes from TRE library
 
- 1. Downloaded source files for TRE ver. 0.7.5 from GitHub repository and reorganized library:
+ 1. Downloaded source files for TRE ver. 0.7.5 from GitHub repository and
+    reorganized library:
 	- renamed to "XRE" (E[X]tended [R]egular [E]xpression) library.
-	- removed non-essential files, combined several C source files and headers, and reformated code.
-	- put all configuration options and public API definitions and declarations into new xre.h header.
-	- trimmed regex.h to the bare minimum needed to compile a program that includes "regex.h" and uses the POSIX API.
-	- changed "tre_" prefix to "x" in all function and type names; for example, "tre_regcomp()" was renamed to "xregcomp()".
+	- removed non-essential files, combined several C source files and
+	  headers, and reformated code.
+	- put all configuration options and public API definitions and
+	  declarations into new xre.h header.
+	- trimmed regex.h to the bare minimum needed to compile a program that
+	  includes "regex.h" and uses the POSIX API.
+	- changed "tre_" prefix to "x" in all function and type names; for
+	  example, "tre_regcomp()" was renamed to "xregcomp()".
  2. Dropped support for BREs:
-	- changed all places (in parse.c) where the REG_EXTENDED flag was checked to assume that it is always set, and removed
-	  extraneous (BRE) code accordingly.
-	- retained REG_EXTENDED macro (set to zero) in xre.h for backward/POSIX compatibility.
+	- changed all places (in parse.c) where the REG_EXTENDED flag was
+	  checked to assume that it is always set, and removed extraneous (BRE)
+	  code accordingly.
+	- retained REG_EXTENDED macro (set to zero) in xre.h for backward/POSIX
+	  compatibility.
     Now BREs are no longer recognized and (non-enhanced) EREs are the default.
  3. Implemented "enhanced" mode:
-	- created REG_ENHANCED compilation flag and changed all code in parse.c that implements enhanced features (such as the
-	  '?' closure modifier) to be dependent on the REG_ENHANCED flag.
+	- created REG_ENHANCED compilation flag and changed all code in parse.c
+	  that implements enhanced features (such as the '?' closure modifier)
+	  to be dependent on the REG_ENHANCED flag.
 	- created shortcuts (recognized in enhanced mode only), as follows:
-		\a, \A		[[:alpha:]], [^[:alpha:]]	Alphabetic characters (letters).
-		\h, \H		[[:blank:]], [^[:blank:]]	Horizontal white space.
-		\l, \L		[[:lower:]], [^[:lower:]]	Lower case letters.
-		\u, \U		[[:upper:]], [^[:upper:]]	Upper case letters.
-		\N						Non-newline character (unaffected by any REG_XXX flag).
-	- modified parseBracketItems() function to recognize "\x" shortcuts in bracketed expressions (such as "[\d\n]") when
-	  REG_ENHANCED is specified.
- 4. Fixed bug in the library (in parseBracket() function) where the REG_NEWLINE option was not implemented for negated character
-    classes, even though the documentation states otherwise.
+	      \a, \A	[[:alpha:]], [^[:alpha:]]	Alphabetic characters.
+	      \h, \H	[[:blank:]], [^[:blank:]]	Horizontal white space.
+	      \l, \L	[[:lower:]], [^[:lower:]]	Lower case letters.
+	      \u, \U	[[:upper:]], [^[:upper:]]	Upper case letters.
+	      \N					Non-newline character
+							(unaffected by any
+							REG_XXX flag).
+	- modified code to recognize "\x" shortcuts in bracketed expressions
+	  (such as "[\d\n]") when REG_ENHANCED is specified.
+ 4. Fixed bug in the library (in parseBracket() function) where the REG_NEWLINE
+    option was not implemented for negated character classes, even though the
+    documentation states otherwise.
  5. Fixed RE syntax issues.  Changed parsePat() function to:
-	. return an error if a repetition operator begins an RE branch.  For example, patterns /?/ and /a|*/ are now invalid.
-	. return an error for empty subexpessions and repetition operators on assertions; for example, "|", "(a|)", and "\b?"
-	  are no longer allowed.
+	. return an error if a repetition operator begins an RE branch.  For
+	  example, patterns /?/ and /a|*/ are now invalid.
+	. return an error for empty subexpessions and repetition operators on
+	  assertions; for example, "|", "(a|)", and "\b?" are no longer allowed.
  6. Fixed word boundary matching at string endpoints:
-	- created REG_WORDCHBOS and REG_WORDCHEOS execution flags (recognized in enhanced mode only) which may be set to
-	  indicate that a word character exists before the beginning of the string or after the end of the string, respectively.
-	- converted CHECK_ASSERTIONS() macro to assertfail() function and changed to check REG_WORDCHBOS and REG_WORDCHEOS flags
-	  when matching \b, \B, \<, and \> assertions so that they match correctly.
+	- created REG_WORDCHBOS and REG_WORDCHEOS execution flags (recognized in
+	  enhanced mode only) which may be set to indicate that a word character
+	  exists before the beginning of the string or after the end of the
+	  string, respectively.
+	- converted CHECK_ASSERTIONS() macro to assertfail() function and
+	  changed to check REG_WORDCHBOS and REG_WORDCHEOS flags when matching
+	  \b, \B, \<, and \> assertions so that they match correctly.
  7. Added support for reversed patterns and backward matching:
-	- created REG_REVERSED compilation flag, which marks a compiled RE as a reversed pattern.
-	- created xregrev(), xregnrev(), xregwrev(), and xregwnrev() functions, which reverse an RE string pattern.
+	- created REG_REVERSED compilation flag, which marks a compiled RE as a
+	  reversed pattern.
+	- created xregrev(), xregnrev(), xregwrev(), and xregwnrev() functions,
+	  which reverse an RE string pattern.
 	- modified assertfail() function so that:
-		. if the REG_REVERSED flag is set, it is assumed that matching is being done in a backward direction and thus,
-		  the ^, $, \<, and \> assertions should be matched accordingly.
-		. the REG_NOTBOL and REG_WORDCHBOS flags always pertain to matching at the beginning of the string (which is at
-		  the end of the scan when scanning backward).
-		. the REG_NOTEOL and REG_WORDCHEOS flags always pertain to matching at the end of the string (which is at the
-		  start of the scan when scanning backward).
+		. if the REG_REVERSED flag is set, it is assumed that matching
+		  is being done in a backward direction and thus, the ^, $, \<,
+		  and \> assertions should be matched accordingly.
+		. the REG_NOTBOL and REG_WORDCHBOS flags always pertain to
+		  matching at the beginning of the string (which is at the end
+		  of the scan when scanning backward).
+		. the REG_NOTEOL and REG_WORDCHEOS flags always pertain to
+		  matching at the end of the string (which is at the start of
+		  the scan when scanning backward).
 	- added check for unsupported RE elements in reversed patterns:
 		- created REG_EREGREV error code and message.
-		- modified parsePat() function to return an REG_EREGREV error if REG_REVERSED flag set and either (1), a back
-		  reference was found in the pattern; or (2), a stand-alone option subexpression "(?xxx)" was found, either of
-		  which will not match properly when scanning backward.
+		- modified parsePat() function to return an REG_EREGREV error if
+		  REG_REVERSED flag set and either (1), a back reference was
+		  found in the pattern; or (2), a stand-alone option
+		  subexpression "(?xxx)" was found, either of which will not
+		  match properly when scanning backward.
  8. Redesigned and fixed character class matching:
-	- created REG_ANY compilation flag, which modifies effect of REG_NEWLINE flag such that a newline will match '.' and
-	  a negated character class, but '^' and '$' matching adjacent to a newline remains in effect.
-	- changed matching code to not match a newline with '.' or a negated character class if REG_NEWLINE flag set and REG_ANY
-	  flag not set.
- 9. Created xregmsg() function, which returns the message associated with an error code, like strerror(), instead of copying the
-    message to a caller-supplied buffer, like xregerror().
+	- created REG_ANY compilation flag, which modifies effect of REG_NEWLINE
+	  flag such that a newline will match '.' and a negated character class,
+	  but '^' and '$' matching adjacent to a newline remains in effect.
+	- changed matching code to not match a newline with '.' or a negated
+	  character class if REG_NEWLINE flag set and REG_ANY flag not set.
+ 9. Created xregmsg() function, which returns the message associated with an
+    error code, like strerror(), instead of copying the message to a
+    caller-supplied buffer, like xregerror().
 10. Made changes to approximate matching:
-	- changed "params" argument of xregaexec(), xreganexec(), xregawexec(), xregawnexec(), matchApprox(),
-	  runApprox(), and setParams() functions to a pointer (regaparams_t *) instead of a struct (regaparams_t), which
-	  is more efficient.
-	- fixed bug in setParams() function where the substitution cost was not being set properly.
-	- created REG_APPROX compilation flag and added 'A' option for setting or clearing it in a pattern.
-	- changed syntax for specifying approximate matching parameters to be cleaner and less ambiguous; i.e., spaces are no
-	  longer allowed, limits and costs are introduced with ';' character, plus signs are required in a cost equation, and
-	  '<=' (for less than or equal to) is used in place of '<', which is what the symbol actually means in the formula.
-	- changed defaults for edits and costs so that they are less confusing and easier to remember:
+	- changed "params" argument of xregaexec(), xreganexec(), xregawexec(),
+	  xregawnexec(), matchApprox(), runApprox(), and setParams() functions
+	  to a pointer (regaparams_t *) instead of a struct (regaparams_t),
+	  which is more efficient.
+	- fixed bug in setParams() function where the substitution cost was not
+	  being set properly.
+	- created REG_APPROX compilation flag and added 'A' option for setting
+	  or clearing it in a pattern.
+	- changed syntax for specifying approximate matching parameters to be
+	  cleaner and less ambiguous; i.e., spaces are no longer allowed, limits
+	  and costs are introduced with ';' character, plus signs are required
+	  in a cost equation, and '<=' (for less than or equal to) is used in
+	  place of '<', which is what the symbol actually means in the formula.
+	- changed defaults for edits and costs so that they are less confusing
+	  and easier to remember:
 		. all individual edits and costs default to 1.
 		. total edits defaults to maximum individual edit.
 		. total cost defaults to unlimited.
-		. an individual edit must be explicitly set to zero to disable it (it is no longer dependent on the individual
-		  cost setting it corresponds with).
+		. an individual edit must be explicitly set to zero to disable
+		  it (it is no longer dependent on the individual cost setting
+		  it corresponds with).
 	- modified parseBrace() function:
-		. changed so that approximate matching parameters in "{...}" are not recognized unless REG_APPROX flag is set.
-		. fixed bug where max_cost was being set to one less than the specified value in the RE.
-	- created xregauexec() function, which performs approximate matching on user data.
+		. changed so that approximate matching parameters in "{...}" are
+		  not recognized unless REG_APPROX flag is set.
+		. fixed bug where max_cost was being set to one less than the
+		  specified value in the RE.
+	- created xregauexec() function, which performs approximate matching on
+	  user data.
 	- created REG_MODERATE, REG_EXACT, and REG_MAXAPPROX flags.
 	- changed parameter initialization:
-		. renamed tre_regaparams_default() function to xregainit() and added integer flag argument.
-		. modified xregainit() to set approximate matching parameters to one of three sets of values: exact matching
-		  (if REG_EXACT specified), maximum-approximation matching (if REG_MAXAPPROX specified), or a "moderate" level
-		  of approximate matching (if REG_MODERATE or zero is specified).
+		. renamed tre_regaparams_default() function to xregainit() and
+		  added integer flag argument.
+		. modified xregainit() to set approximate matching parameters to
+		  one of three sets of values: exact matching (if REG_EXACT
+		  specified), maximum-approximation matching (if REG_MAXAPPROX
+		  specified), or a "moderate" level of approximate matching (if
+		  REG_MODERATE or zero is specified).
 	- created REG_BESTMATCH execution flag.
 	- modified runApprox() function to:
 		. stop immediately if an exact match is found.
-		. otherwise, find best match (search to end of string) if REG_BESTMATCH flag is set (as in TRE).
-		. otherwise, stop at first match found which is within the edit and cost limits if REG_BESTMATCH flag not set.
-	  Now all matches that meet the approximation criteria are reported by default.
+		. otherwise, find best match (search to end of string) if
+		  REG_BESTMATCH flag is set (as in TRE).
+		. otherwise, stop at first match found which is within the edit
+		  and cost limits if REG_BESTMATCH flag not set.
+	  Now all matches that meet the approximation criteria are reported by
+	  default.
 11. Changed how information is obtained:
-	- combined tre_have_approx() and tre_have_backrefs() functions into new xreginfo() function, and changed to return an
-	  integer value containing flags which can be tested for features in a compiled pattern.
-	- renamed tre_config() function to xlibconf() and changed to return an integer value containing flags which can be
-	  tested for library configuration (build) options.
+	- combined tre_have_approx() and tre_have_backrefs() functions into new
+	  xreginfo() function, and changed to return an integer value containing
+	  flags which can be tested for features in a compiled pattern.
+	- renamed tre_config() function to xlibconf() and changed to return an
+	  integer value containing flags which can be tested for library
+	  configuration (build) options.
 	- renamed tre_version() function to xlibvers().
-12. Fixed match processing so that null characters in a string will not be erroneously assumed to indicate the end of the string
-    when using the "n" match routines, as previously.
-13. Fixed bug where a pattern containing braces that specified two or more iterations in combination with approximate matching
-    parameters (e.g., "a{2;#}") would result in a "no match" and a potential crash because the internal AST was being mangled.
-14. Fixed bug in runBackref() function where the portion of a pattern following a back reference would not match because
-    the match-position controls were not being advanced properly past the portion of the string that was matched by the
-    back reference.
-15. Fixed bugs in parsePat() function where a hexadecimal number (\x...) is parsed:
-	- fixed issue where a character past the end of the pattern could be accessed when parsing the number.
-	- fixed issue where a crash would likely occur if the number was longer than 32 digits.
-16. Fixed bug in parseBrace() function where a bound of "{0,0}" was not being allowed and was generating a compilation error.
-17. Fixed bug where REs /a{0}/ and /a{0,0}/ would match "a" instead of "" in string "aaa".
-18. Added check in parsePat() to return an error if a '\0' back reference is found in a pattern (which is invalid).
+12. Fixed match processing so that null characters in a string will not be
+    erroneously assumed to indicate the end of the string when using the "n"
+    match routines, as previously.
+13. Fixed bug where a pattern containing braces that specified two or more
+    iterations in combination with approximate matching parameters (e.g.,
+    "a{2;#}") would result in a "no match" and a potential crash because the
+    internal AST was being mangled.
+14. Fixed bug in runBackref() function where the portion of a pattern following
+    a back reference would not match because the match-position controls were
+    not being advanced properly past the portion of the string that was matched
+    by the back reference.
+15. Fixed bugs in parsePat() function where a hexadecimal number (\x...) is
+    parsed:
+	- fixed issue where a character past the end of the pattern could be
+	  accessed when parsing the number.
+	- fixed issue where a crash would likely occur if the number was longer
+	  than 32 digits.
+16. Fixed bug in parseBrace() function where a bound of "{0,0}" was not being
+    allowed and was generating a compilation error.
+17. Fixed bug where REs /a{0}/ and /a{0,0}/ would match "a" instead of "" in
+    string "aaa".
+18. Added check in parsePat() to return an error if a '\0' back reference is
+    found in a pattern (which is invalid).
 
 
 *** Implementation Notes
 
- 1. Obsolete Basic Regular Expressions (BREs), which were supported in TRE, are not supported in XRE.
- 2. Unlike TRE, the REG_ENHANCED and/or REG_APPROX compilation flags (which are new) must be specified to enable enhanced and/or
-    approximate matching features in an RE pattern.
+ 1. Obsolete Basic Regular Expressions (BREs), which were supported in TRE, are
+    not supported in XRE.
+ 2. Unlike TRE, the REG_ENHANCED and/or REG_APPROX compilation flags (which are
+    new) must be specified to enable enhanced and/or approximate matching
+    features in an RE pattern.
  3. The API was changed (see xre_core(3) man page):
-	 - the tre_have_approx() and tre_have_backrefs() functions were replaced with xreginfo().
+	 - the tre_have_approx() and tre_have_backrefs() functions were replaced
+	   with xreginfo().
 	 - the tre_config() function was renamed to xlibconf().
 	 - the tre_version() function was renamed to xlibvers().
-	 - all other API functions whose names began with "tre_" now begin with "x"; for example, tre_regcomp() is now
-	   xregcomp().
- 4. The approximate matching syntax specified in an RE pattern has changed slightly (see xre_format(7) man page).
+	 - all other API functions whose names began with "tre_" now begin with
+	   "x"; for example, tre_regcomp() is now xregcomp().
+ 4. The approximate matching syntax specified in an RE pattern has changed
+    slightly (see xre_format(7) man page).

@@ -4,15 +4,14 @@
 .\" "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
 .\"
 .ad l
-.TH XREGEX 3 2022-06-04 "Ver. 1.1.0" "XRE Library Documentation"
+.TH XREGEX 3 2022-08-18 "Ver. 1.2" "XRE Library Documentation"
 .nh \" Turn off hyphenation.
 .SH NAME
 \fBregcomp\fR, \fBregexec\fR, \fBregerror\fR, \fBregfree\fR,
 \fBxregcomp\fR, \fBxregexec\fR, \fBxregerror\fR, \fBxregfree\fR,
 \fBxregncomp\fR, \fBxregwcomp\fR, \fBxregwncomp\fR,
 \fBxregnexec\fR, \fBxregwexec\fR, \fBxregwnexec\fR,
-\fBxreguexec\fR,
-\fBxregmsg\fR, \fBxreginfo\fR - extended regular expression (XRE) core routines
+\fBxreguexec\fR, \fBxregmsg\fR - eXtended Regular Expression (XRE) core routines.
 .SH SYNOPSIS
 .B (POSIX-ERE-compliant APIs)
 .PP
@@ -62,7 +61,7 @@ regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
 .HP 2
 \fBconst char *xregmsg(int \fIerrcode\fB);\fR
 .HP 2
-\fBint xreginfo(const regex_t *\fIpreg\fB);\fR
+\fBint xregprop(const regex_t *\fIpreg\fB);\fR
 .SH DESCRIPTION
 These routines process IEEE Std 1003.1-2017 (POSIX) extended regular expressions (EREs) with enhancements, as
 described in xre_format(7).  The preferred routines are those with names beginning with "x".  The ones
@@ -75,13 +74,13 @@ function matches the internal form against a string and reports results.  \fBxre
 codes from the compilation and execution functions to a message string.  \fBxregfree\fR() releases all dynamic
 memory associated with the internal form of an ERE.
 .PP
-The "regex.h" and "xre.h" headers include declarations of two structure types, \fIregex_t\fR and
-\fIregmatch_t\fR, the first for holding the compiled pattern, and the second for reporting matches.  They also
+The "regex.h" and "xre.h" headers include declarations of two structure types, \fBregex_t\fR and
+\fBregmatch_t\fR, the first for holding the compiled pattern, and the second for reporting matches.  They also
 declare a number of constants with names beginning with "REG_", which are used to provide options to the
 complilation and matching routines.
 .SS Compilation
 \fBxregcomp\fR() compiles the ERE pattern string, subject to the flags in \fIcflags\fR, and places the results
-in the \fIregex_t\fR structure pointed to by \fIpreg\fR.  The \fIcflags\fR argument is the bitwise OR of zero
+in the \fBregex_t\fR structure pointed to by \fIpreg\fR.  The \fIcflags\fR argument is the bitwise OR of zero
 or more of the following flags:
 .IP REG_EXTENDED 16
 Compile modern ("extended") REs, rather than the obsolete ("basic") REs that are the default under strict
@@ -93,9 +92,9 @@ Compile for matching that ignores case.
 Compile for matching that need only report success or failure, not what was matched.
 .IP REG_NEWLINE 16
 Compile for newline-sensitive matching.  By default, newline is a completely ordinary character with no special
-meaning in either EREs or strings.  With this flag, '.' and '[^' negated bracket expressions never match a
-newline, the '^' assertion matches the null string after any newline in the string in addition to its normal
-function, and the '$' assertion matches the null string before any newline in the string in addition to its
+meaning in either EREs or strings.  With this flag, \(aq.\(aq and \(aq[^\(aq negated bracket expressions never match a
+newline, the \(aq^\(aq assertion matches the null string after any newline in the string in addition to its normal
+function, and the \(aq$\(aq assertion matches the null string before any newline in the string in addition to its
 normal function.
 .PP
 In addition to the flags above, the following non-POSIX flags may be used:
@@ -111,16 +110,15 @@ Use non-greedy (minimal) repetitions by default instead of the normal greedy one
 Synonym for REG_UNGREEDY.
 .IP REG_ANY 16
 Alter compilation for newline-sensitive matching.  When this flag is set and the REG_NEWLINE flag is also set,
-compilation is changed so that '.' and '[^' negated bracket expressions match a newline, but matching of '^'
-and '$' assertions in proximity to a newline remains in effect.
+compilation is changed so that \(aq.\(aq and \(aq[^\(aq negated bracket expressions match a newline, but
+matching of \(aq^\(aq and \(aq$\(aq assertions in proximity to a newline remains in effect.
 .IP REG_APPROX 16
 Enable approximate matching features in the ERE pattern string (see xre_format(7)).
-.IP REG_REVERSED 16
-Mark ERE as a reversed pattern to be used for backward matching (see xregrev(3)).  When this flag is set,
-the ERE pattern string may not contain back references or position-dependent inline options of form '(?\fIo...\fR)'
-or '(?-\fIo...\fR)', all of which are incompatible with backward matching.  (Inline options in a non-capturing
-'(?:' subexpression are permitted, however.) This flag affects the behavior of the '^', '$', '\\<', and '\\>'
-assertions at execution time.
+.IP REG_REVERSE 16
+Compile entire pattern in reversed form so that it can be used for backward matching.  When this flag is set,
+the ERE pattern string may not contain back references, which are incompatible with backward matching.  This
+flag affects the behavior of the \(aq^\(aq, \(aq$\(aq, \(aq\e<\(aq, and \(aq\e>\(aq assertions at
+execution time.
 .IP REG_RIGHTASSOC 16
 Make concatenation right associative during compilation.
 .PP
@@ -130,39 +128,41 @@ subexpressions within the ERE (except that the value of this member is undefined
 specified).  If \fBxregcomp\fR() fails, it returns a non-zero error code (which may be REG_BADPAT or one of
 the error codes that more precisely describes the error; see \fBDIAGNOSTICS\fR).
 .SS Execution
-The \fBxregexec\fR() function matches the compiled ERE pointed to by \fIpreg\fR against the \fIstring\fR,
-subject to the flags in \fIeflags\fR, and reports results using \fInmatch\fR, \fIpmatch\fR, and the returned
-value.  The ERE must have been compiled by a previous call to \fBxregcomp\fR().  If \fBxregexec\fR() finds a
-match, it returns zero; otherwise, it returns non-zero indicating either no match or an error; see
-\fBDIAGNOSTICS\fR.  The compiled form is not altered during execution, so a single compiled ERE can be used
-simultaneously by multiple threads or can be matched against multiple strings.
+The \fBxregexec\fR() function matches the compiled ERE pointed to by \fIpreg\fR against the text pointed to by
+\fIstring\fR, subject to the flags in \fIeflags\fR, and reports results using \fInmatch\fR, \fIpmatch\fR, and
+the returned value.  The ERE must have been compiled by a previous call to \fBxregcomp\fR().  If
+\fBxregexec\fR() finds a match, it returns zero; otherwise, it returns non-zero indicating either no match or
+an error; see \fBDIAGNOSTICS\fR.  The compiled form is not altered during execution, so a single compiled ERE
+can be used simultaneously by multiple threads or can be matched against multiple strings.
 .PP
 The \fIeflags\fR argument is the bitwise OR of zero or more of the following flags:
 .IP REG_NOTBOL 16
-The first character of the string is not the beginning of a line, therefore the '^' assertion should not match
-immediately before it.  If the REG_REVERSED flag was specified when the ERE was compiled (and therefore the
+The first character of the string is not the beginning of a line, therefore the \(aq^\(aq assertion should not match
+immediately before it.  If the REG_REVERSE flag was specified when the ERE was compiled (and therefore the
 string is being scanned backward from the end to the beginning), the first character of the string is assumed to
-be where the scanning ends.  The REG_NOTBOL flag does not affect how the '^' assertion matches in proximity to
-newlines when the REG_NEWLINE flag is set.
+be where the scanning ends.  Note that the REG_NOTBOL flag does not affect how the \(aq^\(aq assertion matches
+in proximity to newlines when the REG_NEWLINE flag is set.
 .IP REG_NOTEOL 16
-The last character of the string is not the end of a line, therefore the '$' assertion should not match
-immediately after it.  If the REG_REVERSED flag was specified when the ERE was compiled (and therefore the
+The last character of the string is not the end of a line, therefore the \(aq$\(aq assertion should not match
+immediately after it.  If the REG_REVERSE flag was specified when the ERE was compiled (and therefore the
 string is being scanned backward from the end to the beginning), the last character of the string is assumed to
-be where the scanning starts.  The REG_NOTEOL flag does not affect how the '$' assertion matches in proximity to
-newlines when the REG_NEWLINE flag is set.
+be where the scanning begins.  Note that the REG_NOTEOL flag does not affect how the \(aq$\(aq assertion
+matches in proximity to newlines when the REG_NEWLINE flag is set.
 .PP
 In addition to the flags above, the following non-POSIX flags may be used if the REG_ENHANCED flag was
 specified when the ERE was compiled:
 .IP REG_WORDCHBOS 16
 The first character of the string is not the beginning of the string and a word character exists immediately
-before it, therefore the '\\<', '\\>', '\\b', and '\\B' assertions should match accordingly.  If the REG_REVERSED
-flag was specified when the ERE was compiled (and therefore the string is being scanned backward from the end to
-the beginning), the first character of the string is assumed to be where the scanning ends.
+before it, therefore the \(aq\e<\(aq, \(aq\e>\(aq, \(aq\eb\(aq, and \(aq\eB\(aq assertions should match
+accordingly.  If the REG_REVERSE flag was specified when the ERE was compiled (and therefore the string is
+being scanned backward from the end to the beginning), the first character of the string is assumed to be
+where the scanning ends.
 .IP REG_WORDCHEOS 16
-The last character of the string is not the end of the string and a word character exists immediately after it,
-therefore the '\\<', '\\>', '\\b', and '\\B' assertions should match accordingly.  If the REG_REVERSED flag was
-specified when the ERE was compiled (and therefore the string is being scanned backward from the end to the
-beginning), the last character of the string is assumed to be where the scanning starts.
+The last character of the string is not the end of the string and a word character exists immediately after
+it, therefore the \(aq\e<\(aq, \(aq\e>\(aq, \(aq\eb\(aq, and \(aq\eB\(aq assertions should match accordingly.
+If the REG_REVERSE flag was specified when the ERE was compiled (and therefore the string is being scanned
+backward from the end to the beginning), the last character of the string is assumed to be where the scanning
+begins.
 .IP REG_BESTMATCH 16
 If the REG_APPROX flag was specified when the ERE was compiled and the ERE contained approximate matching
 features, the best possible match in the entire string will be reported (which is not necessarily the first).
@@ -170,11 +170,17 @@ See xregaex(3).
 .PP
 If the REG_NOSUB compilation flag was specified, or if \fInmatch\fR is zero, \fBxregexec\fR() ignores the
 \fIpmatch\fR argument.  Otherwise, \fIpmatch\fR points to an array of \fInmatch\fR structures of type
-\fIregmatch_t\fR.  Such a structure has at least the members \fIrm_so\fR and \fIrm_eo\fR, both of type
-\fIregoff_t\fR (a signed arithmetic type), containing respectively the offset of the first character of a
-substring and the offset of the first character after the end of the substring.  Offsets are measured from the
-beginning of the \fIstring\fR argument given to the \fBxregexec\fR() function.  An empty substring is denoted
-by equal offsets, both indicating the character following the empty substring.
+\fBregmatch_t\fR.  Such a structure has at least the members \fIrm_so\fR and \fIrm_eo\fR, both of type
+\fBregoff_t\fR (a signed arithmetic type), containing respectively the offset of the first character of a
+substring and the offset of the first character after the end of the substring (but see note below).  Offsets
+are measured from the beginning of the \fIstring\fR argument given to the \fBxregexec\fR() function.  An empty
+substring is denoted by equal offsets, both indicating the character following the empty substring.
+.PP
+Note that if the REG_REVERSE compilation flag was specified, the match offsets are measured from the end of
+the \fIstring\fR argument going backward; therefore, \fIrm_eo\fR will contain the offset of the first
+character before the beginning of the substring and \fIrm_so\fR will contain the offset of the end of the
+substring.  For example, if pattern "cd" (reversed to "dc") was matched against string "abcde", \fIrm_eo\fR
+would contain 3 and \fIrm_so\fR would contain 1.
 .PP
 The 0th member of the \fIpmatch\fR array is filled in to indicate what substring of string was matched by the
 entire ERE.  Remaining members report what substring was matched by parenthesized subexpressions within the
@@ -214,7 +220,7 @@ to by \fIpreg\fR.  The remaining \fIregex_t\fR is no longer a valid compiled ERE
 it to \fBxregexec\fR() or \fBxregerror\fR() is undefined.
 .SH EXTENDED APIS
 The XRE library provides extended APIs for compilation and execution of EREs, as well as other purposes.  Note
-that any of the \fBxregcomp\fR() variants may be used to initialize a \fIregex_t\fR structure, that can then
+that any of the \fBxregcomp\fR() variants may be used to initialize a \fBregex_t\fR structure, that can then
 be passed to any of the \fBxregexec\fR() variants.  So it is quite legal for example, to compile a wide
 character ERE and use it to match a multibyte character string, or vice versa.
 .PP
@@ -232,7 +238,7 @@ In addition to the extended APIs above, the XRE library provides a special routi
 operates like \fBxregexec\fR() except that the string to match can be located in any user-defined data
 context.  The user data must contain a sequence of characters to be matched (not necessarily contiguous) which
 are supplied by the caller via a callback function.  This function and other callback functions are specified
-in the \fIregusource_t\fR structure pointed to by the \fIstring\fR argument.  The structure is defined as
+in the \fBregusource_t\fR structure pointed to by the \fIstring\fR argument.  The structure is defined as
 follows:
 .sp
 .RS 5
@@ -242,11 +248,11 @@ follows:
 typedef struct {
 .RS 5
 .HP 2
-bool (*nextchar)(xcint_t *pc, unsigned int *plen, void *context);
+bool (*nextchar)(xint_t *pc, unsigned int *plen, void *context);
 .HP 2
-void (*rewind)(size_t pos, void *context);
+void (*rewind)(regoff_t pos, void *context);
 .HP 2
-int (*compare)(size_t pos1, size_t pos2, size_t len, void *context);
+int (*compare)(regoff_t pos1, regoff_t pos2, size_t len, void *context);
 .HP 2
 void *context;
 .HP 2
@@ -257,10 +263,10 @@ void *context;
 .PP
 The structure is filled in by the caller and a pointer to it is passed as the \fIstring\fR argument to
 \fBxreguexec\fR().  The \fInextchar\fR member of the structure is a pointer to a callback function which
-returns the next character and its length from the input stream.  (A character's length is measured in input
-stream positions.)  If a character is retrieved successfully, \fI*pc\fR is set to the character, \fI*plen\fR
-is set to its length, and false is returned.  If EOF is reached, \fI*pc\fR is set to \fI(xcint_t)\fR -1 and
-true is returned (\fI*plen\fR is ignored).
+returns the next character and its length from the input stream.  (A character\(aqs length is measured in input
+stream positions.)  If a character is available, \fI*pc\fR is set to the character, \fI*plen\fR is set to its
+length, and false is returned.  If end-of-input is reached, \fI*pc\fR is set to \fI(xint_t)\fR -1 and true is returned
+(\fI*plen\fR is ignored).
 .PP
 The \fIrewind\fR and \fIcompare\fR function pointers are only used if the ERE contains back references and may
 be set to NULL if not needed.  The \fBrewind\fR() callback function resets the position in the input stream to
@@ -272,24 +278,30 @@ The \fIcontext\fR member of the structure is provided as a generic pointer to a 
 can be used to maintain state information about the input stream.  It is passed as the last argument to all
 three callback functions so that the state information can be shared and updated among them.  It can be set to
 NULL if it is not being used.
-.PP
-See the example program included in the XRE distribution for usage of \fBxreguexec\fR().
-.SS Pattern Attributes
-The \fBxreginfo\fR() routine returns information about the compiled ERE pointed to by \fIpreg\fR.  The ERE
-must have been compiled by a previous call to \fBxregcomp\fR() or one of its variants.  The returned integer
-is the bitwise OR of zero or more of the following flags:
+.SS Pattern Information
+A compiled ERE is saved in a \fBregex_t\fR structure, as noted previously.  In addition to the
+\fIre_nsub\fR member, this structure has the members \fIcflags\fR and \fIpflags\fR, both of type \fBint\fR,
+containing respectively the compilation flags and "property" flags.  The \fIpflags\fR member, which provides
+information about the compiled pattern, is the bitwise OR of zero or more of the following flags:
 .sp
 .PD 0
 .RS 5
-.IP PatBackrefs 20
+.IP PropHaveRegical 20
+The compiled ERE contains one or more regular expression metacharacters.
+.IP PropHaveBackref 20
 The compiled ERE contains one or more back references.
-.IP PatApprox 20
+.IP PropHaveApprox 20
 The compiled ERE contains approximate matching features.
+.IP PropHaveEscLit 20
+The compiled ERE contains one or more escaped literal characters.
 .RE
 .PD
+.PP
+If the \fBPropHaveRegical\fR flag is not set, the pattern is plain text and could therefore be used with a
+fast-search algorithm such as Boyer-Moore.  However, if the \fBPropHaveEscLit\fR flag is set, the escaped characters
+in the pattern (such as \en and \et) would have to be converted to the actual characters they represent first.
 .SH DIAGNOSTICS
-Non-zero error codes from \fBxregcomp\fR(), \fBxregexec\fR(), and \fBxregrev\fR() (described in
-xregrev(3)) are as follows:
+Non-zero error codes from \fBxregcomp\fR() and \fBxregexec\fR() are as follows:
 .sp
 .PD 0
 .RS 5
@@ -306,15 +318,15 @@ Trailing backslash invalid.
 .IP REG_ESUBREG 18
 Invalid back reference.
 .IP REG_EBRACK 18
-Brackets '[ ]' not balanced
+Brackets \(aq[ ]\(aq not balanced
 .IP REG_EPAREN 18
-Parentheses '( )' not balanced
+Parentheses \(aq( )\(aq not balanced
 .IP REG_EBRACE 18
-Braces '{ }' not balanced
+Braces \(aq{ }\(aq not balanced
 .IP REG_BADBR 18
-Invalid repetition count(s) in '{ }'.
+Invalid repetition count(s) in \(aq{ }\(aq.
 .IP REG_ERANGE 18
-Invalid character range in '[ ]'.
+Invalid character range in \(aq[ ]\(aq.
 .IP REG_ESPACE 18
 Out of memory.
 .IP REG_BADRPT 18
@@ -323,14 +335,16 @@ Invalid use of repetition operator.
 Empty (sub)expression.
 .IP REG_EHEX 18
 Invalid hexadecimal value.
+.IP REG_MAXOFF 18
+Maximum match offset exceeded.
 .IP REG_STRCHAR 18
 Invalid multibyte character in string.
 .IP REG_PATCHAR 18
 Invalid multibyte character in pattern.
-.IP REG_EPARAM 18
-Invalid approximate matching parameter(s).
 .IP REG_EREGREV 18
 Unsupported element(s) in reversed pattern.
+.IP REG_EPARAM 18
+Invalid approximate matching parameter(s).
 .RE
 .PD
 .SH EXAMPLES

@@ -20,7 +20,7 @@
 #define EnableApprox		1	// Enable approximate matching?
 #define EnableReverse		1	// Enable reversed patterns and backward matching?
 
-#define XRE_Version		"1.1.0"
+#define XRE_Version		"1.2.0"
 
 #if EnableMultibyte && !EnableWChar
 #undef EnableWChar
@@ -38,11 +38,13 @@
 extern "C" {
 #endif
 
-// Since we're not using the system regex.h, we need to define the structs and flags ourselves.
-typedef int regoff_t;
+// Since we're not using the system regex.h, we need to define the structures and flags ourselves.
+typedef ssize_t regoff_t;
 typedef struct {
-	size_t re_nsub;		// Number of parenthesized subexpressions.
-	void *re_cpat;		// For internal use only.
+	int cflags;			// Compilation flags.
+	int pflags;			// Pattern property flags.
+	size_t re_nsub;			// Number of parenthesized subexpressions.
+	void *re_data;			// For internal use only.
 	} regex_t;
 
 typedef struct {
@@ -51,26 +53,26 @@ typedef struct {
 	} regmatch_t;
 
 // POSIX error codes (in the order listed in the standard).
-#define REG_OK			0	// No error.
-#define REG_NOMATCH		1	// Match failed.
-#define REG_BADPAT		2	// Invalid regular expression.
-#define REG_ECOLLATE		3	// Unknown collating element.
-#define REG_ECTYPE		4	// Unknown character class name.
-#define REG_EESCAPE		5	// Trailing backslash invalid.
-#define REG_ESUBREG		6	// Invalid back reference.
+#define REG_NOMATCH		1	// Match failed
+#define REG_BADPAT		2	// Invalid regular expression
+#define REG_ECOLLATE		3	// Unknown collating element
+#define REG_ECTYPE		4	// Unknown character class name
+#define REG_EESCAPE		5	// Trailing backslash invalid
+#define REG_ESUBREG		6	// Invalid back reference
 #define REG_EBRACK		7	// Brackets '[ ]' not balanced
 #define REG_EPAREN		8	// Parentheses '( )' not balanced
 #define REG_EBRACE		9	// Braces '{ }' not balanced
-#define REG_BADBR		10	// Invalid repetition count(s) in '{ }'.
-#define REG_ERANGE		11	// Invalid character range in '[ ]'.
-#define REG_ESPACE		12	// Out of memory.
-#define REG_BADRPT		13	// Invalid use of repetition operator.
-#define REG_EMPTY		14	// Empty (sub)expression.
-#define REG_EHEX		15	// Invalid hexadecimal value.
-#define REG_STRCHAR		16	// Invalid multibyte character in string.
-#define REG_PATCHAR		17	// Invalid multibyte character in pattern.
-#define REG_EPARAM		18	// Invalid approximate matching parameter(s).
-#define REG_EREGREV		19	// Unsupported element(s) in reversed pattern.
+#define REG_BADBR		10	// Invalid repetition count(s) in '{ }'
+#define REG_ERANGE		11	// Invalid character range in '[ ]'
+#define REG_ESPACE		12	// Out of memory
+#define REG_BADRPT		13	// Invalid use of repetition operator
+#define REG_EMPTY		14	// Empty (sub)expression
+#define REG_EHEX		15	// Invalid hexadecimal value
+#define REG_MAXOFF		16	// Maximum match offset exceeded
+#define REG_STRCHAR		17	// Invalid multibyte character in string
+#define REG_PATCHAR		18	// Invalid multibyte character in pattern
+#define REG_EREGREV		19	// Cannot reverse back reference(s) in pattern
+#define REG_EPARAM		20	// Invalid approximate matching parameter(s)
 
 // POSIX regcomp() flags.
 #define REG_EXTENDED		0x0000		// For POSIX compatibility -- not used (implicitly set).
@@ -85,7 +87,7 @@ typedef struct {
 #define REG_LITERAL		0x0040		// Interpret the entire RE literally; that is, as all ordinary characters.
 #define REG_RIGHTASSOC		0x0080		// Compile so that concatenation of subpatterns is right associative.
 #define REG_UNGREEDY		0x0100		// Use non-greedy (minimal) repetitions instead of the normal greedy ones.
-#define REG_REVERSED		0x0200		// Flag RE as a reversed pattern to be used for backward matching.
+#define REG_REVERSE		0x0200		// Reverse RE pattern and perform backward matching.
 
 // Synonym flags.
 #define REG_NOSPEC		REG_LITERAL
@@ -135,16 +137,16 @@ extern int xregwncomp(regex_t *preg, const wchar_t *wpat, size_t len, int cflags
 extern int xregwnexec(const regex_t *preg, const wchar_t *string, size_t len, size_t nmatch, regmatch_t pmatch[], int eflags);
 
 typedef wchar_t xchar_t;
-typedef wint_t xcint_t;
+typedef wint_t xint_t;
 #else
 typedef char xchar_t;
-typedef short xcint_t;
+typedef short xint_t;
 #endif
 
 typedef struct {
-	bool (*nextchar)(xcint_t *pc, int *plen, void *context);
-	void (*rewind)(size_t pos, void *context);
-	int (*compare)(size_t pos1, size_t pos2, size_t len, void *context);
+	bool (*nextchar)(xint_t *pc, unsigned int *plen, void *context);
+	void (*rewind)(regoff_t pos, void *context);
+	int (*compare)(regoff_t pos1, regoff_t pos2, size_t len, void *context);
 	void *context;
 	} regusource_t;
 
@@ -204,20 +206,11 @@ extern void xregainit(regaparams_t *params, int level);
 
 extern const char *xregmsg(int errcode);
 
-#if EnableReverse
-extern int xregrev(char *revpat, const char *pat, int cflags);
-extern int xregnrev(char *revpat, const char *pat, size_t n, int cflags);
-#if EnableWChar
-extern int xregwrev(wchar_t *revpat, const wchar_t *pat, int cflags);
-extern int xregwnrev(wchar_t *revpat, const wchar_t *pat, size_t n, int cflags);
-#endif
-#endif
-
-// Returns information about a compiled pattern.
-extern int xreginfo(const regex_t *preg);
-
-#define PatBackrefs		0x0001
-#define PatApprox		0x0002
+// Pattern property flags.
+#define PropHaveRegical		0x0001		// Pattern contains regular expression metacharacter(s).
+#define PropHaveApprox		0x0002		// Pattern contains approximate matching features.
+#define PropHaveBackref		0x0004		// Pattern contains back reference(s).
+#define PropHaveEscLit		0x0008		// Pattern contains escaped literal character(s).
 
 // Returns library configuration flags.
 extern int xlibconf(void);

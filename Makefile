@@ -1,19 +1,19 @@
-# Makefile for XRE library.	Ver. 1.1.0
+# Makefile for XRE library.	Ver. 1.2.0
 
 # Definitions.
 MAKEFLAGS = --no-print-directory
 ProjName = XRE
 LibName = libxre.a
-LibGlob = libxre{,-{8bit,wchar_mb}}.a
+LibGlob = libxre*
 SrcDir = src
 ObjDir = obj
 InclDir = include
 InclFlags = -I$(InclDir)
 LibDir = lib
 HdrFileGlob = {xre,regex,stdos}.h
-OldManGlob = xre_{approx,core,info,reverse}.3
 Install1 = /usr/local
 ManDir = share/man
+OldManGlob = man3/{xre_{approx,core,info,reverse},xreg{info,{,n,w,wn}rev}}.3
 SrcManDir = man
 SrcTestDir = test
 TestFiles = Makefile include/tutil.h src/tutil.c src/txre.c
@@ -23,7 +23,7 @@ DestTestInstructions = Install.txt
 
 # Options and arguments to the C compiler.
 CC = cc
-#DFlags = -DXRE_Debug		# Full debugging (to standard error).
+#DFlags = -DXRE_Debug=1		# Full debugging (to standard error).
 #DFlags =			# No debugging, keep assertions.
 DFlags = -DNDEBUG		# No debugging or assertions (Production).
 
@@ -53,7 +53,7 @@ ObjFiles =\
 all: build-msg $(LibName)
 
 build-msg:
-	@if [ ! -f $(LibName1) ]; then \
+	@if [ ! -f $(LibName) ]; then \
 		echo "Building $(ProjName) library..." 1>&2;\
 	fi
 
@@ -103,7 +103,7 @@ uninstall:
 			rm -f "$$f" 2>/dev/null && echo "Deleted '$$f'" 1>&2;\
 		done;\
 		for f in "$$destDir"/include/$(HdrFileGlob) "$$destDir"/$(ManDir)/$(OldManGlob); do \
-			if [ -e "$$f" ]; then \
+			if [ -e "$$f" ] || [ -L "$$f" ]; then \
 				rm -rf "$$f" && echo "Deleted '$$f'" 1>&2;\
 			fi;\
 		done;\

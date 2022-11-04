@@ -6,7 +6,7 @@
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
 // file included with this distribution or visit http://www.gnu.org/licenses/lgpl-3.0.en.html.
 
-#ifdef XRE_Debug
+#if XRE_Debug
 #include <stdio.h>
 #endif
 #include <string.h>
@@ -49,18 +49,18 @@ ast_node_t *ast_newLit(memhdr_t *mem, int code_min, int code_max, int position) 
 	return node;
 	}
 
-ast_node_t *ast_newIter(memhdr_t *mem, ast_node_t *arg, int min, int max, int minimal) {
+ast_node_t *ast_newIter(memhdr_t *mem, ast_node_t *sub, int min, int max, int minimal) {
 	ast_node_t *node;
 	ast_iter_t *iter;
 
 	if((node = ast_newNode(mem, AST_Iter, sizeof(ast_iter_t))) == NULL)
 		return NULL;
 	iter = node->obj;
-	iter->arg = arg;
+	iter->sub = sub;
 	iter->min = min;
 	iter->max = max;
 	iter->minimal = minimal;
-	node->num_submatches = arg->num_submatches;
+	node->num_submatches = sub->num_submatches;
 
 	return node;
 	}
@@ -89,7 +89,80 @@ ast_node_t *ast_newCat(memhdr_t *mem, ast_node_t *left, ast_node_t *right) {
 	return node;
 	}
 
-#ifdef XRE_Debug
+#if EnableReverse
+
+// Create reversed version of given tree in place and return it.
+static ast_node_t *revtree(ast_node_t *node) {
+
+	switch(node->type) {
+		case AST_Lit:
+			// Nothing needs to followed from a literal node, so we can just return it.
+			break;
+		case AST_Cat:
+			{ast_node_t *left, *right;
+			ast_cat_t *cat = node->obj;
+			left = revtree(cat->left);
+			right = revtree(cat->right);
+
+			// Reverse the node order.
+			cat->left = right;
+			cat->right = left;
+			}
+			break;
+		case AST_Union:
+			{ast_node_t *left, *right;
+			ast_union_t *u = node->obj;
+			left = revtree(u->left);
+			right = revtree(u->right);
+
+			// Reverse the node order.
+			u->left = right;
+			u->right = left;
+			}
+			break;
+		case AST_Iter:
+			(void) revtree(((ast_iter_t *) node->obj)->sub);
+			break;
+		default:
+			assert(0);
+		}
+	return node;
+	}
+
+// Renumber submatch IDs in given AST.
+static void renumAST(ast_node_t *ast, int *psubid) {
+
+	if(ast->submatch_id >= 0)
+		ast->submatch_id = ++*psubid;
+	switch(ast->type) {
+		case AST_Lit:
+			break;
+		case AST_Cat:
+			renumAST(((ast_cat_t *) ast->obj)->left, psubid);
+			renumAST(((ast_cat_t *) ast->obj)->right, psubid);
+			break;
+		case AST_Union:
+			renumAST(((ast_union_t *) ast->obj)->left, psubid);
+			renumAST(((ast_union_t *) ast->obj)->right, psubid);
+			break;
+		case AST_Iter:
+			renumAST(((ast_iter_t *) ast->obj)->sub, psubid);
+			break;
+		}
+	}
+
+// Create reversed version of given abstract syntax tree (AST).
+void revAST(ast_node_t *ast) {
+	int submatch_id = -1;
+
+	// Reverse tree in place.
+	(void) revtree(ast);
+
+	// Scan reversed AST and renumber submatch IDs.
+	renumAST(ast, &submatch_id);
+	}
+#endif
+#if XRE_Debug
 
 void printParams(bool printLabel, regaparams_t *params) {
 	static char *labels[] = {"costs", "edits", NULL};
@@ -152,17 +225,17 @@ static void printNode(ast_node_t *ast, int indent) {
 			lit = ast->obj;
 			switch(lit->code_min) {
 				case LitEmpty:
-					fprintf(stderr, "empty literal\n");
+					fputs("empty literal\n", stderr);
 					break;
 				case LitAssert:
-					{int i;
-					char *assertions[] = {"bol", "eol", "ctype", "!ctype", "bow", "eow", "wb", "!wb"};
-					if(lit->code_max >= AssertLast << 1)
+					{unsigned i;
+					char *assertions[] = {"BOL", "EOL", "BOW", "EOW", "WB", "!WB", "CType", "!CType"};
+					if(lit->code_max >= (AssertLast << 1))
 						assert(0);
-					fprintf(stderr, "assertions: ");
+					fprintf(stderr, "assertions(%.4x):", lit->code_max);
 					for(i = 0; (1 << i) <= AssertLast; ++i)
 						if(lit->code_max & (1 << i))
-							fprintf(stderr, "%s ", assertions[i]);
+							fprintf(stderr, " %s", assertions[i]);
 					fputc('\n', stderr);
 					}
 					break;
@@ -187,7 +260,7 @@ static void printNode(ast_node_t *ast, int indent) {
 			iter = ast->obj;
 			fprintf(stderr, "iteration {%d, %d}, subid %d, %d tags, %s\n",
 			 iter->min, iter->max, ast->submatch_id, num_tags, iter->minimal ? "minimal" : "greedy");
-			printNode(iter->arg, indent + 2);
+			printNode(iter->sub, indent + 2);
 			break;
 		case AST_Union:
 			fprintf(stderr, "union, subid %d, %d tags\n", ast->submatch_id, num_tags);
@@ -255,29 +328,29 @@ typedef struct {
 #if !EnableWChar
 
 // isalnum() and the rest may be macros, so wrap them to functions.
-int xisalnum_func(xcint_t c) { return xisalnum(c); }
-int xisalpha_func(xcint_t c) { return xisalpha(c); }
+int xisalnum_func(xint_t c) { return xisalnum(c); }
+int xisalpha_func(xint_t c) { return xisalpha(c); }
 
 #ifdef xisascii
-int xisascii_func(xcint_t c) { return xisascii(c); }
+int xisascii_func(xint_t c) { return xisascii(c); }
 #elif 0		// Wide characters enabled (EnableWChar); therefore, this is not needed.
-int xisascii_func(xcint_t c) { return !(c & ~0177); }
+int xisascii_func(xint_t c) { return !(c & ~0177); }
 #endif
 
-int xisblank_func(xcint_t c) { return xisblank(c); }
-int xiscntrl_func(xcint_t c) { return xiscntrl(c); }
-int xisdigit_func(xcint_t c) { return xisdigit(c); }
-int xisgraph_func(xcint_t c) { return xisgraph(c); }
-int xislower_func(xcint_t c) { return xislower(c); }
-int xisprint_func(xcint_t c) { return xisprint(c); }
-int xispunct_func(xcint_t c) { return xispunct(c); }
-int xisspace_func(xcint_t c) { return xisspace(c); }
-int xisupper_func(xcint_t c) { return xisupper(c); }
-int xisxdigit_func(xcint_t c) { return xisxdigit(c); }
+int xisblank_func(xint_t c) { return xisblank(c); }
+int xiscntrl_func(xint_t c) { return xiscntrl(c); }
+int xisdigit_func(xint_t c) { return xisdigit(c); }
+int xisgraph_func(xint_t c) { return xisgraph(c); }
+int xislower_func(xint_t c) { return xislower(c); }
+int xisprint_func(xint_t c) { return xisprint(c); }
+int xispunct_func(xint_t c) { return xispunct(c); }
+int xisspace_func(xint_t c) { return xisspace(c); }
+int xisupper_func(xint_t c) { return xisupper(c); }
+int xisxdigit_func(xint_t c) { return xisxdigit(c); }
 
 struct mapitem {
 	char *name;
-	int (*func)(xcint_t);
+	int (*func)(xint_t);
 	} xctype_map[] = {
 		{"alnum", &xisalnum_func},
 		{"alpha", &xisalpha_func},
@@ -334,17 +407,19 @@ static const Shortcut xtab[] = {
 	{'W', "[^[:alnum:]_]"},
 	{'\0', NULL}};
 
+#define LitCharCount		5	// Number of literal characters at beginning of xtab table.
+
 // Expand possible shortcut character at 're' to 'buf', which is assumed to have sufficient space.  buf[0] is set to zero if
 // shortcut not found.  If 'strip' is true, leading bracket is skipped during expansion and negated expansions are treated as
-// "not found".
-static void expandShortcut(xchar_t *buf, const xchar_t *re, bool strip) {
+// "not found".  Return true if escaped literal character found, otherwise false.
+static bool expandShortcut(xchar_t *buf, const xchar_t *re, bool strip) {
 	const Shortcut *x = xtab;
 
-	*buf = 0;
+	*buf = L'\0';
 	do {
 		if((!strip || islower(x->c)) && (xchar_t) x->c == *re) {
 			const char *str = (strip && *x->expansion == '[') ? x->expansion + 1 : x->expansion;
-#ifdef XRE_Debug
+#if XRE_Debug
 			fprintf(stderr, "Expanding shortcut '%c' => ", x->c);
 			if(*str < ' ')
 				fprintf(stderr, "char %d\n", (int) *str);
@@ -354,10 +429,13 @@ static void expandShortcut(xchar_t *buf, const xchar_t *re, bool strip) {
 			do {
 				*buf++ = (xchar_t) ((unsigned char) *str++);
 				} while(*str != '\0');
-			*buf = 0;
+			*buf = L'\0';
+			if(x < xtab + LitCharCount)
+				return true;
 			break;
 			}
 		} while((++x)->c != '\0');
+	return false;
 	}
 
 static int newItem(memhdr_t *mem, int min, int max, item_list_t *ilist) {
@@ -379,20 +457,20 @@ static int newItem(memhdr_t *mem, int min, int max, item_list_t *ilist) {
 		}
 
 	// Add literal node to list.
-	return (array[ilist->n++] = ast_newLit(mem, min, max, -1)) == NULL ? REG_ESPACE : REG_OK;
+	return (array[ilist->n++] = ast_newLit(mem, min, max, -1)) == NULL ? REG_ESPACE : 0;
 	}
 
 // Expand a named character class to character ranges to improve performance for 8-bit character sets.
 static int expandCC(memhdr_t *mem, xctype_t class, item_list_t *ilist, int cflags) {
 	int status;
-	xcint_t c;
+	xint_t c;
 	int j;
 	int min = -1, max = 0;
 	assert(XRE_MB_CUR_MAX == 1);
 
 	DPrintf((stderr, "  expanding class to character ranges\n"));
 	for(j = 0; j < 256; ++j) {
-		c = (xcint_t) j;
+		c = (xint_t) j;
 		if(xisctype(c, class) || ((cflags & REG_ICASE) && (xisctype(xtolower(c), class) ||
 		 xisctype(xtoupper(c), class)))) {
 			if(min < 0)
@@ -401,25 +479,25 @@ static int expandCC(memhdr_t *mem, xctype_t class, item_list_t *ilist, int cflag
 			}
 		else if(min >= 0) {
 			DPrintf((stderr, "  range conversion %c (%d) to %c (%d)\n", min, min, max, max));
-			if((status = newItem(mem, min, max, ilist)) != REG_OK)
+			if((status = newItem(mem, min, max, ilist)) != 0)
 				return status;
 			min = -1;
 			}
 		}
-	return (min >= 0) ? newItem(mem, min, max, ilist) : REG_OK;
+	return (min >= 0) ? newItem(mem, min, max, ilist) : 0;
 	}
 
 // Forward.
 static int parseBracketItems(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass);
 
-// Parse a class name of form "[:xxx:]".  *pre is assumed to point at the opening left bracket.
-static int parseCC(parse_ctx_t *ctx, const xchar_t **pre, xctype_t *pclass) {
-	const xchar_t *re = *pre + 2;
-	const xchar_t *re1 = re;
+// Parse a class name of form "[:xxx:]".  *ctx->re is assumed to point at the opening left bracket.
+static int parseCC(parse_ctx_t *ctx, xctype_t *pclass) {
+	const xchar_t *re1;
 	int len;
-	char tmp_str[64];
+	char nameBuf[64];
 
-	DPrintf((stderr, "  named class: '%.*" StrF "'\n", Rest(re)));
+	re1 = ctx->re += 2;
+	DPrintf((stderr, "  named class: '%.*" StrF "'\n", Rest(re1)));
 
 	// Find end of name.
 	for(;;) {
@@ -433,30 +511,69 @@ static int parseCC(parse_ctx_t *ctx, const xchar_t **pre, xctype_t *pclass) {
 		return REG_ECTYPE;
 
 	// Check if name is valid.
-	len = Min(re1 - re, 63);
+	len = Min(re1 - ctx->re, 63);
 #if EnableWChar
 	xchar_t tmp_wcs[64];
-	wcsncpy(tmp_wcs, re, (size_t) len);
+	wcsncpy(tmp_wcs, ctx->re, (size_t) len);
 	tmp_wcs[len] = 0;
-	len = wcstombs(tmp_str, tmp_wcs, 63);
+	len = wcstombs(nameBuf, tmp_wcs, 63);
 #else
-	strncpy(tmp_str, (const char *) re, len);
-	tmp_str[len] = '\0';
+	strncpy(nameBuf, (const char *) ctx->re, len);
+	nameBuf[len] = '\0';
 #endif
-	DPrintf((stderr, "  class name: %s\n", tmp_str));
-	if(!(*pclass = xctype(tmp_str)))
+	DPrintf((stderr, "  class name: %s\n", nameBuf));
+	if(!(*pclass = xctype(nameBuf)))
 		return REG_ECTYPE;
 
 	// Success.
-	*pre = re1 + 2;
-	return REG_OK;
+	ctx->re = re1 + 2;
+	return 0;
+	}
+
+// Parse and decode a hexadecimal value beginning at 'x' of \x, possibly enclosed in braces.  Set *pval to result if successful
+// and return 0; otherwise, return an error.
+static int hexchar(parse_ctx_t *ctx, long *pval) {
+	int maxDigits = 2;
+	bool foundLeftBrace = false, foundRightBrace = false;
+	char wkbuf[8 + 1], *str = wkbuf;
+
+	++ctx->re;		// May be past end of pattern.
+	DPrintf((stderr, "hex char: '%.*" StrF "'\n", Rest(ctx->re - 2)));
+	if(ctx->re < ctx->re_end && *ctx->re == CharLBrace) {
+		maxDigits = 8;
+		foundLeftBrace = true;
+		++ctx->re;
+		}
+	while(ctx->re < ctx->re_end) {
+		if(*ctx->re == CharRBrace) {
+			if(foundLeftBrace) {
+				foundRightBrace = true;
+				++ctx->re;
+				}
+			break;
+			}
+		if(str - wkbuf == maxDigits)
+			goto Done;
+		if(xisxdigit(*ctx->re))
+			*str++ = (char) *ctx->re++;
+		else
+			break;
+		}
+	if(str == wkbuf)
+		return REG_EHEX;
+Done:
+	if(foundLeftBrace != foundRightBrace)
+		return REG_EBRACE;
+	*str = '\0';
+	*pval = strtol(wkbuf, NULL, 16);
+	return 0;
 	}
 
 // Parse next item inside bracketed expression, which includes a range.
-static int parseItem(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass, const xchar_t **pre) {
+static int parseItem(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass) {
 	bool cshortcut = false;
+	bool haveHex = false;
 	int min = -1, max = -1;
-	const xchar_t *re = *pre;
 	int status, c;
 	xctype_t class = (xctype_t) 0;
 
@@ -464,19 +581,30 @@ static int parseItem(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass
 	// character, or character class name is simply the first endpoint of a "range", not followed by '-'.  After each item
 	// is parsed, exactly one of the min, max, class, or cshortcut state variables is updated.
 	for(;;) {
-		c = *re;
+		c = *ctx->re;
 
 		// Check for "\x".
 		if(c == CharBackslash) {
-			if(re + 1 == ctx->re_end)
+			if(ctx->re + 1 == ctx->re_end)
 				return REG_EBRACK;
 			if(!(ctx->cflags & REG_ENHANCED))
 				goto Literal;
 
+			// Check for hex character.
+			c = *++ctx->re;
+			if(c == L'x') {
+				long val;
+
+				if((status = hexchar(ctx, &val)) != 0)
+					return status;
+				c = val;
+				haveHex = true;
+				goto Literal;
+				}
+
 			// Expand shortcut if possible.
-			xchar_t buf[64];
-			c = *++re;
-			expandShortcut(buf, re, true);
+			xchar_t buf[32];
+			(void) expandShortcut(buf, ctx->re, true);
 			if(buf[0] == L'\0')
 				goto Literal;
 			if(buf[1] == L'\0') {
@@ -493,21 +621,21 @@ static int parseItem(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass
 			subctx.len = xstrlen(buf);
 			subctx.re_end = buf + subctx.len;
 			subctx.keepfirst = false;
-			if((status = parseBracketItems(&subctx, ilist, nclass)) != REG_OK)
+			if((status = parseBracketItems(&subctx, ilist, nclass)) != 0)
 				return status;
-			++re;
+			++ctx->re;
 			cshortcut = true;
 			}
 
 		// Check for "[:xxx:]".
-		else if(re + 1 < ctx->re_end && c == CharLBracket) {
-			switch(re[1]) {
+		else if(ctx->re + 1 < ctx->re_end && c == CharLBracket) {
+			switch(ctx->re[1]) {
 				case CharPeriod:
 				case CharEqual:
 					return REG_ECOLLATE;
 				case CharColon:
 					{xctype_t newclass;
-					if((status = parseCC(ctx, &re, &newclass)) != REG_OK)
+					if((status = parseCC(ctx, &newclass)) != 0)
 						return status;
 					if(min != -1)
 						return REG_ERANGE;
@@ -521,7 +649,7 @@ static int parseItem(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass
 		else {
 Literal:
 			// Have literal character... save it.
-			DPrintf((stderr, "  char: '%.*" StrF "'\n", Rest(re)));
+			DPrintf((stderr, "  char: '%.*" StrF "'\n", Rest(ctx->re)));
 			if(min == -1)
 				min = c;
 			else {
@@ -530,22 +658,25 @@ Literal:
 					return REG_ERANGE;
 				max = c;
 				}
-			++re;
+			if(haveHex)
+				haveHex = false;
+			else
+				++ctx->re;
 			}
 
 		// One atom parsed successfully.  Check for range.
-		if(re + 1 >= ctx->re_end || re[0] != CharMinus || re[1] == CharRBracket)
+		if(ctx->re + 1 >= ctx->re_end || ctx->re[0] != CharMinus || ctx->re[1] == CharRBracket)
 			break;
 		if(class || cshortcut || max != -1)
 			return REG_ERANGE;
-		++re;
+		++ctx->re;
 		}
 
 	// Item parsed successfully.  Set 'max' if needed.
 	if(min != -1) {
 		if(max == -1)
 			max = min;
-#ifdef XRE_Debug
+#if XRE_Debug
 		else
 			fprintf(stderr, "  range %c (%d) to %c (%d)\n", min, min, max, max);
 #endif
@@ -555,13 +686,10 @@ Literal:
 		max = XRE_CHAR_MAX;
 
 		// Optimize named character classes for 8-bit character sets.
-		if(ctx->cur_max == 1) {
-			if((status = expandCC(ctx->mem, class, ilist, ctx->cflags)) != REG_OK)
-				return status;
-			goto Retn;
-			}
+		if(ctx->cur_max == 1)
+			return expandCC(ctx->mem, class, ilist, ctx->cflags);
 
-		// Add class to negated class list if needed.
+		// Add class to negated class list if applicable.
 		if(nclass != NULL) {
 			if(nclass->n == MaxNegClasses)
 				return REG_ESPACE;
@@ -571,14 +699,14 @@ Literal:
 
 	if(!cshortcut) {
 		// Add item to list.
-		if((status = newItem(ctx->mem, min, max, ilist)) != REG_OK)
+		if((status = newItem(ctx->mem, min, max, ilist)) != 0)
 			return status;
 		((ast_lit_t *) ilist->nodes[ilist->n - 1]->obj)->u.class = class;
 
 		// Add opposite-case counterpoints if REG_ICASE flag set.  This is broken if there are more than two "same"
 		// characters.
-		if(ctx->cflags & REG_ICASE && !class) {
-			xcint_t cmin, cmax;
+		if(!class && ctx->cflags & REG_ICASE) {
+			xint_t cmin, cmax;
 			DPrintf((stderr, "adding opposite-case counterpoints\n"));
 			do {
 				if(xislower(min)) {
@@ -592,7 +720,7 @@ Literal:
 					while(min <= max && xisupper(min) && xtolower(min) == cmax + 1)
 						cmax = xtolower(min++);
 NewItem:
-					if((status = newItem(ctx->mem, cmin, cmax, ilist)) != REG_OK)
+					if((status = newItem(ctx->mem, cmin, cmax, ilist)) != 0)
 						return status;
 					}
 				else
@@ -600,38 +728,36 @@ NewItem:
 				} while(min <= max);
 			}
 		}
-Retn:
-	*pre = re;
-	return REG_OK;
+
+	return 0;
 	}
 
 // Parse the contents of a bracketed expression, beginning just past the '[' and '^', if any.
 static int parseBracketItems(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass) {
 	int status;
-	const xchar_t *re = ctx->re;
+	const xchar_t *re0 = ctx->re;
 
-	DPrintf((stderr, "parseBracketItems: parsing '%.*" StrF "', len %d\n", Rest(re), (int)(ctx->re_end - re)));
+	DPrintf((stderr, "parseBracketItems: parsing '%.*" StrF "', len %d\n", Rest(re0), (int)(ctx->re_end - re0)));
 
 	// Build an array of the items in the bracketed expression.
 	for(;;) {
 		// End of pattern?
-		if(re == ctx->re_end)
+		if(ctx->re == ctx->re_end)
 			return REG_EBRACK;
 
 		// End of bracketed expression?
-		if(*re == CharRBracket && re > ctx->re) {
-			DPrintf((stderr, "parseBracketItems: done: '%.*" StrF "'\n", Rest(re)));
-			++re;
+		if(*ctx->re == CharRBracket && ctx->re > re0) {
+			DPrintf((stderr, "parseBracketItems: done: '%.*" StrF "'\n", Rest(ctx->re)));
+			++ctx->re;
 			break;
 			}
 
 		// Parse next token.
-		if((status = parseItem(ctx, ilist, nclass, &re)) != REG_OK)
+		if((status = parseItem(ctx, ilist, nclass)) != 0)
 			return status;
 		}
 
-	ctx->re = re;
-	return REG_OK;
+	return 0;
 	}
 
 // Copy negated classes to a node and return status.
@@ -645,7 +771,7 @@ static int copyNeg(parse_ctx_t *ctx, ast_lit_t *lnode, nclass_list_t *nlist) {
 	while(src < srcz)
 		*dest++ = *src++;
 	*dest = (xctype_t) 0;
-	return REG_OK;
+	return 0;
 	}
 
 static int compareItems(const void *a, const void *b) {
@@ -657,12 +783,13 @@ static int compareItems(const void *a, const void *b) {
 	return (a_min < b_min) ? -1 : (a_min > b_min) ? 1 : 0;
 	}
 
-static int parseBracket(parse_ctx_t *ctx, ast_node_t **result) {
+static int parseBracket(parse_ctx_t *ctx, ast_node_t **pnode) {
 	ast_node_t *node = NULL;
-	int status = REG_OK;
+	int status = 0;
 	ast_node_t **pitem, **pitemz, *u, *n;
+	ast_lit_t *lit;
 	nclass_list_t *nclass = NULL;
-	int curr_max, curr_min;
+	int min, max, neg_min, neg_max;
 	item_list_t items = {0, 32, NULL};
 	nclass_list_t nclasses = {0, {0}};
 
@@ -670,111 +797,109 @@ static int parseBracket(parse_ctx_t *ctx, ast_node_t **result) {
 	if((items.nodes = malloc(sizeof(*items.nodes) * items.size)) == NULL)
 		return REG_ESPACE;
 
-	// Parse the bracketed expression.
+	// Parse the bracketed expression into an array of literal nodes.
 	if(*ctx->re == CharCircumflex) {
 		DPrintf((stderr, "parseBracket: negate: '%.*" StrF "'\n", Rest(ctx->re)));
 		nclass = &nclasses;
 		++ctx->re;
 		}
-	if((status = parseBracketItems(ctx, &items, nclass)) != REG_OK)
+	if((status = parseBracketItems(ctx, &items, nclass)) != 0)
 		goto Retn;
 
 	// Sort the array if we need to negate it.
-	if(nclass != NULL)
+	if(nclass != NULL && items.n > 1)
 		qsort(items.nodes, (unsigned) items.n, sizeof(*items.nodes), compareItems);
 
-	// Build a union of the items in the array, negated if necessary.
-	curr_max = curr_min = 0;
+	// Convert items in the array to an AST (with "node" as root), merging overlapping ranges, and negated if applicable.
+	neg_min = neg_max = 0;
 	for(pitemz = (pitem = items.nodes) + items.n; pitem < pitemz; ++pitem) {
-		ast_lit_t *lnode = (*pitem)->obj;
-		int min = lnode->code_min;
-		int max = lnode->code_max;
+		lit = (*pitem)->obj;
+		min = lit->code_min;
+		max = lit->code_max;
 
-		DPrintf((stderr, "item: %d - %d, class %ld, curr_max = %d\n", min, max, (long) lnode->u.class, curr_max));
+		DPrintf((stderr, "item: %d - %d, class %ld, neg_max = %d\n", min, max, (long) lit->u.class, neg_max));
 
 		if(nclass != NULL) {
-			if(min < curr_max) {
+
+			// Skip item if has "dummy" range (a non-optimized, negated character class).
+			if(min == 0 && max == XRE_CHAR_MAX) {
+				DPrintf((stderr, "skipped item\n"));
+				continue;
+				}
+			if(min < neg_max) {
 
 				// Overlap.
-				curr_max = Max(max + 1, curr_max);
-				DPrintf((stderr, "overlap, curr_max = %d\n", curr_max));
-				lnode = NULL;
+				neg_max = Max(neg_max, max + 1);
+				DPrintf((stderr, "overlap, neg_max => %d\n", neg_max));
+				lit = NULL;
 				}
 			else {
-				// No overlap.
-				curr_max = min - 1;
-				if(curr_max >= curr_min) {
+				// No overlap... have a gap.
+				neg_max = min - 1;
+				if(neg_max >= neg_min) {
 					DPrintf((stderr, "no overlap\n"));
-					lnode->code_min = curr_min;
-					lnode->code_max = curr_max;
+					lit->code_min = neg_min;
+					lit->code_max = neg_max;
 					}
 				else {
 					DPrintf((stderr, "no overlap, zero room\n"));
-					lnode = NULL;
+					lit = NULL;
 					}
-				curr_min = curr_max = max + 1;
+				neg_min = neg_max = max + 1;
 				}
 			}
 
 		// Skip node completely if negated expression, range is a single newline, REG_NEWLINE flag set, and REG_ANY
 		// flag not set so that newline is excluded.
-		if(lnode != NULL && (nclass == NULL || lnode->code_min != L'\n' || lnode->code_max != L'\n' ||
+		if(lit != NULL && (nclass == NULL || lit->code_min != L'\n' || lit->code_max != L'\n' ||
 		 (ctx->cflags & (REG_NEWLINE | REG_ANY)) != REG_NEWLINE)) {
 
 			// Not newline special case... keep node.
-			DPrintf((stderr, "creating item %d - %d\n", (int) lnode->code_min, (int) lnode->code_max));
-			lnode->position = ctx->position;
+			DPrintf((stderr, "creating item %d - %d\n", (int) lit->code_min, (int) lit->code_max));
+			lit->position = ctx->position;
 			if(nclasses.n == 0)
-				lnode->neg_classes = NULL;
-			else if((status = copyNeg(ctx, lnode, nclass)) != REG_OK)
+				lit->neg_classes = NULL;
+			else if((status = copyNeg(ctx, lit, nclass)) != 0)
 				goto Retn;
 
 			if(node == NULL)
 				node = *pitem;
 			else {
-				u = ast_newUnion(ctx->mem, node, *pitem);
-				if(u == NULL) {
-					status = REG_ESPACE;
-					goto Retn;
-					}
+				if((u = ast_newUnion(ctx->mem, node, *pitem)) == NULL)
+					goto NoSpace;
 				node = u;
 				}
 
 			// Now check for newline in range: if negated expression, range includes newline, REG_NEWLINE flag set,
 			// and REG_ANY flag not set, adjust node so that newline is excluded.
-			if(nclass != NULL && lnode->code_min <= L'\n' && lnode->code_max >= L'\n' &&
+			if(nclass != NULL && lit->code_min <= L'\n' && lit->code_max >= L'\n' &&
 			 (ctx->cflags & (REG_NEWLINE | REG_ANY)) == REG_NEWLINE) {
 				DPrintf((stderr, "removing newline from item %d - %d\n",
-				 (int) lnode->code_min, (int) lnode->code_max));
-				if(lnode->code_min == L'\n')
-					++lnode->code_min;
-				else if(lnode->code_max == L'\n')
-					--lnode->code_max;
+				 (int) lit->code_min, (int) lit->code_max));
+				if(lit->code_min == L'\n')
+					++lit->code_min;
+				else if(lit->code_max == L'\n')
+					--lit->code_max;
 				else {
 					// Newline inside range... split it.  Use existing node for chars preceding newline.
 					ast_lit_t *l2;
-					int oldmax = lnode->code_max;
-					lnode->code_max = L'\n' - 1;
+					int oldmax = lit->code_max;
+					lit->code_max = L'\n' - 1;
 
 					// Make new node for chars following newline.
-					if((n = ast_newLit(ctx->mem, L'\n' + 1, oldmax, ctx->position)) == NULL) {
-						status = REG_ESPACE;
-						goto Retn;
-						}
+					if((n = ast_newLit(ctx->mem, L'\n' + 1, oldmax, ctx->position)) == NULL)
+						goto NoSpace;
 					l2 = n->obj;
 					if(nclasses.n == 0)
 						l2->neg_classes = NULL;
-					else if((status = copyNeg(ctx, l2, nclass)) != REG_OK)
+					else if((status = copyNeg(ctx, l2, nclass)) != 0)
 						goto Retn;
 
 					if(node == NULL)
 						node = n;
 					else {
-						u = ast_newUnion(ctx->mem, node, n);
-						if(u == NULL) {
-							status = REG_ESPACE;
-							goto Retn;
-							}
+						if((u = ast_newUnion(ctx->mem, node, n)) == NULL)
+							goto NoSpace;
 						node = u;
 						}
 					}
@@ -783,38 +908,35 @@ static int parseBracket(parse_ctx_t *ctx, ast_node_t **result) {
 		}
 
 	if(nclass != NULL) {
-		DPrintf((stderr, "final: creating %d - %d\n", curr_min, (int) XRE_CHAR_MAX));
-		if((n = ast_newLit(ctx->mem, curr_min, XRE_CHAR_MAX, ctx->position)) == NULL) {
-			status = REG_ESPACE;
-			goto Retn;
-			}
+		DPrintf((stderr, "final: creating %d - %d\n", neg_min, XRE_CHAR_MAX));
+		if((n = ast_newLit(ctx->mem, neg_min, XRE_CHAR_MAX, ctx->position)) == NULL)
+			goto NoSpace;
 		else {
-			ast_lit_t *lnode = n->obj;
+			lit = n->obj;
 			if(nclasses.n == 0)
-				lnode->neg_classes = NULL;
-			else if((status = copyNeg(ctx, lnode, nclass)) != REG_OK)
+				lit->neg_classes = NULL;
+			else if((status = copyNeg(ctx, lit, nclass)) != 0)
 				goto Retn;
 
 			if(node == NULL)
 				node = n;
 			else {
-				u = ast_newUnion(ctx->mem, node, n);
-				if(u == NULL) {
-					status = REG_ESPACE;
-					goto Retn;
-					}
+				if((u = ast_newUnion(ctx->mem, node, n)) == NULL)
+					goto NoSpace;
 				node = u;
 				}
 			}
 		}
-#ifdef XRE_Debug
-	printAST(node, "post-parse-bracket");
+#if XRE_Debug
+	printAST(node, "post-parseBracket()");
 #endif
-
+	goto Retn;
+NoSpace:
+	status = REG_ESPACE;
 Retn:
 	free(items.nodes);
 	++ctx->position;
-	*result = node;
+	*pnode = node;
 	return status;
 	}
 
@@ -851,7 +973,7 @@ static int parseInt(const xchar_t **rep, const xchar_t *re_end) {
 //			ns	cost of a substitution.
 //			c	maximum cost.
 // Individual counts and costs default to 1.
-static int parseBrace(parse_ctx_t *ctx, ast_node_t **result) {
+static int parseBrace(parse_ctx_t *ctx, ast_node_t **pnode) {
 	int min, max, n;
 	const xchar_t *re = ctx->re;
 	const xchar_t *start;
@@ -866,7 +988,7 @@ static int parseBrace(parse_ctx_t *ctx, ast_node_t **result) {
 	unsigned short editsSet = 0;
 	unsigned short editTotalSet = 0;
 #endif
-#ifdef XRE_Debug
+#if XRE_Debug && EnableApprox
 	char *str;
 #endif
 	min = max = -1;
@@ -940,19 +1062,19 @@ CostEQ:
 						goto ERetn;
 					switch(*re) {
 						case L'i':	// Insert cost.
-#ifdef XRE_Debug
+#if XRE_Debug
 							str = "ins";
 #endif
 							pitem = &costIns;
 							goto SetCost;
 						case L'd':	// Delete cost.
-#ifdef XRE_Debug
+#if XRE_Debug
 							str = "del";
 #endif
 							pitem = &costDel;
 							goto SetCost;
 						case L's':	// Substitute cost.
-#ifdef XRE_Debug
+#if XRE_Debug
 							str = "subst";
 #endif
 							pitem = &costSubst;
@@ -983,25 +1105,25 @@ CheckEdits:
 				for(;;) {
 					switch(*re) {
 						case CharPlus:  // Maximum number of insertions.
-#ifdef XRE_Debug
+#if XRE_Debug
 							str = "ins";
 #endif
 							pitem = &maxIns;
 							goto SetMax;
 						case CharMinus: // Maximum number of deletions.
-#ifdef XRE_Debug
+#if XRE_Debug
 							str = "del";
 #endif
 							pitem = &maxDel;
 							goto SetMax;
 						case CharHash:  // Maximum number of substitutions.
-#ifdef XRE_Debug
+#if XRE_Debug
 							str = "subst";
 #endif
 							pitem = &maxSubst;
 							goto SetMax;
 						case CharTilde: // Maximum number of edits.
-#ifdef XRE_Debug
+#if XRE_Debug
 							str = "edit";
 #endif
 							pitem = &maxEdit;
@@ -1083,14 +1205,14 @@ NoBrace:
 		// Only approximate parameters set, no repetitions.
 		min = max = 1;
 #endif
-	if((*result = ast_newIter(ctx->mem, *result, min, max, minimal)) == NULL)
+	if((*pnode = ast_newIter(ctx->mem, *pnode, min, max, minimal)) == NULL)
 		return REG_ESPACE;
 
 #if EnableApprox
 	// If approximate matching parameters are set, add them to the iteration node.
 	if(costTotalSet || costsSet || editTotalSet || editsSet) {
 		params_t *params;
-		ast_iter_t *iter = (*result)->obj;
+		ast_iter_t *iter = (*pnode)->obj;
 
 		int *iparams[] = {
 			&maxIns, &maxDel, &maxSubst, &costIns, &costDel, &costSubst, NULL};
@@ -1118,48 +1240,18 @@ NoBrace:
 		params->depth = ParamUnset;
 		iter->params = params;
 		}
-#ifdef XRE_Debug
+#if XRE_Debug
 	fprintf(stderr, "parse_brace: min %d, max %d, ", min, max);
-	printParams(false, &((ast_iter_t *) (*result)->obj)->params->pa);
+	printParams(false, &((ast_iter_t *) (*pnode)->obj)->params->pa);
 	fputc('\n', stderr);
 #endif
 #else
 	DPrintf((stderr, "parse_brace: min %d, max %d\n", min, max));
 #endif
 	ctx->re = re;
-	return REG_OK;
+	return 0;
 ERetn:
 	return REG_BADBR;
-	}
-
-// Decode a non-empty hexadecimal value, possibly enclosed in braces.  Set *pval to result if successful and return REG_OK;
-// otherwise, return an error.
-static int hexnum(parse_ctx_t *ctx, int maxDigits, long *pval) {
-	char wkbuf[maxDigits + 1], *str = wkbuf;
-
-	for(;;) {
-		if(ctx->re == ctx->re_end) {
-			if(maxDigits > 2)
-				return REG_EBRACE;
-			break;
-			}
-		if(*ctx->re == CharRBrace && maxDigits > 2) {
-			++ctx->re;
-			break;
-			}
-		if(str - wkbuf == maxDigits)
-			goto Done;
-		if(xisxdigit(*ctx->re))
-			*str++ = (char) *ctx->re++;
-		else
-			break;
-		}
-	if(str == wkbuf)
-		return REG_EHEX;
-Done:
-	*str = '\0';
-	*pval = strtol(wkbuf, NULL, 16);
-	return REG_OK;
 	}
 
 typedef enum {
@@ -1168,24 +1260,353 @@ typedef enum {
 	ParseMarkForSubmatch,
 	ParseBranch,
 	ParsePiece,
-	ParseCatenation,
-	ParsePostCatenation,
+	ParseConcatenation,
+	ParsePostConcatenation,
 	ParseUnion,
 	ParsePostUnion,
 	ParsePostfix,
 	ParseRestoreCFlags
 	} parse_re_stack_symbol_t;
 
+#if XRE_Debug > 1
+static char *parseSymName[] = {
+	"ParseRE", "ParseAtom", "ParseMarkForSubmatch", "ParseBranch", "ParsePiece", "ParseConcatenation",
+	"ParsePostConcatenation", "ParseUnion", "ParsePostUnion", "ParsePostfix", "ParseRestoreCFlags"};
+#endif
+
+// Parse an atom and return status.  An atom is a regular expression enclosed in '()', an empty set of '()', a bracket
+// expression, '.', '^', '$', a '\' followed by a character, or a single character.
+static int parseAtom(parse_ctx_t *ctx, ast_node_t **pnode) {
+	int status;
+	xstack_t *stack = ctx->stack;
+	char *str;
+
+	// At end of pattern or in literal mode?
+	if(ctx->re == ctx->re_end || ctx->cflags & REG_LITERAL)
+		goto ParseLit;
+
+	// Process current character (atom).
+	switch(*ctx->re) {
+		case CharLParen:	// Parenthesized subexpression.
+
+			// Handle "(?...)" extensions in enhanced mode.  They work in a way similar to Perl's corresponding
+			// extensions.
+			if(ctx->cflags & REG_ENHANCED && ctx->re + 1 < ctx->re_end && ctx->re[1] == CharHook) {
+				char *msg;
+				int flag, new_cflags = ctx->cflags;
+				int bit = 1;
+				DPrintf((stderr, "parsePat: extension: '%.*" StrF "'\n", Rest(ctx->re)));
+				ctx->re += 2;
+				for(;;) {
+					msg = NULL;
+					switch(*ctx->re) {
+						case L'A':
+							msg = "approx";
+							flag = REG_APPROX;
+							break;
+						case L'a':
+							msg = "any newline";
+							flag = REG_ANY;
+							break;
+						case L'i':
+							msg = "icase";
+							flag = REG_ICASE;
+							break;
+						case L'n':
+							msg = "newline";
+							flag = REG_NEWLINE;
+							break;
+						case L'r':
+							msg = "right assoc";
+							flag = REG_RIGHTASSOC;
+							break;
+						case L'U':
+							msg = "ungreedy";
+							flag = REG_UNGREEDY;
+							break;
+						case CharMinus:
+							DPrintf((stderr, "parsePat: turn off: '%.*" StrF "'\n", Rest(ctx->re)));
+							++ctx->re;
+							bit = 0;
+							break;
+						case CharColon:
+							DPrintf((stderr, "parsePat: non-capturing: '%.*" StrF "'\n",
+							 Rest(ctx->re)));
+							++ctx->re;
+							++ctx->nest_level;
+							goto EndOpts;
+						case CharHash:
+							DPrintf((stderr, "parsePat: comment: '%.*" StrF "'\n", Rest(ctx->re)));
+
+							// A comment can contain any character except a right parenthesis.
+							for(;;) {
+								if(++ctx->re == ctx->re_end)
+									return REG_BADPAT;
+								if(*ctx->re == CharRParen) {
+									++ctx->re;
+									goto EndOpts;
+									}
+								}
+						case CharRParen:
+							++ctx->re;
+							goto EndOpts;
+						default:
+							return REG_BADPAT;
+						}
+					if(msg != NULL) {
+						DPrintf((stderr, "parsePat: %s: '%.*" StrF "'\n", msg, Rest(ctx->re)));
+						if(bit)
+							new_cflags |= flag;
+						else
+							new_cflags &= ~flag;
+						++ctx->re;
+						}
+					}
+EndOpts:
+				// Turn on the cflags changes for the rest of the enclosing group.
+				StackPush(stack, int, ctx->cflags);
+				StackPush(stack, int, ParseRestoreCFlags);
+				StackPush(stack, int, ParseRE);
+				ctx->cflags = new_cflags;
+				break;
+				}
+			++ctx->nest_level;
+			if(ctx->cflags & REG_ENHANCED && ctx->re + 2 < ctx->re_end && ctx->re[1] == CharHook &&
+			 ctx->re[2] == CharColon) {
+				DPrintf((stderr, "parsePat: group begin: '%.*" StrF "', no submatch\n", Rest(ctx->re)));
+
+				// Don't mark for submatching.
+				ctx->re += 3;
+				StackPush(stack, int, ParseRE);
+				}
+			else {
+				DPrintf((stderr, "parsePat: group begin: '%.*" StrF "', submatch %d\n", Rest(ctx->re),
+				 ctx->submatch_id));
+				++ctx->re;
+
+				// First parse a whole RE, then mark the resulting tree for submatching.
+				StackPush(stack, int, ctx->submatch_id);
+				StackPush(stack, int, ParseMarkForSubmatch);
+				StackPush(stack, int, ParseRE);
+				++ctx->submatch_id;
+				}
+			break;
+		case CharRParen:	// End of current subexpression.
+			if(ctx->nest_level > 0) {
+				DPrintf((stderr, "parsePat: empty: '%.*" StrF "'\n", Rest(ctx->re)));
+
+				// We were expecting an atom, but instead the current subexpression was closed.  POSIX leaves
+				// the meaning of this to be implementation-defined.  We interpret this as an empty expression
+				// (which matches an empty string).
+				if((*pnode = ast_newLit(ctx->mem, LitEmpty, -1, -1)) == NULL)
+					return REG_ESPACE;
+				}
+			else
+				goto ParseLit;
+			break;
+		case CharLBracket:	// Bracket expression.
+			DPrintf((stderr, "parsePat: bracket: '%.*" StrF "'\n", Rest(ctx->re)));
+			++ctx->re;
+			if((status = parseBracket(ctx, pnode)) != 0)
+				return status;
+			break;
+		case CharBackslash:	// Shortcut or escaped character.
+			if(ctx->re + 1 == ctx->re_end)	// Trailing backslash.
+				return REG_EESCAPE;
+
+			// If not enhanced mode, process escaped character literally.
+			if(!(ctx->cflags & REG_ENHANCED)) {
+				++ctx->re;
+				goto EscChar;
+				}
+
+			// Enhanced mode.  Check if \x shortcut.  If found, parse the expanded text recursively.
+			{xchar_t buf[32];
+
+			if(expandShortcut(buf, ctx->re + 1, false))
+				ctx->pflags |= PropHaveEscLit;
+			if(buf[0] != L'\0') {
+				parse_ctx_t subctx;
+				memcpy(&subctx, ctx, sizeof(subctx));
+				subctx.re = subctx.re_start = buf;
+				subctx.len = xstrlen(buf);
+				subctx.re_end = buf + subctx.len;
+				subctx.keepfirst = false;
+				subctx.nest_level = 0;
+				if((status = parsePat(&subctx)) != 0)
+					return status;
+				ctx->re += 2;
+				ctx->position = subctx.position;
+				*pnode = subctx.rootnode;
+				break;
+				}
+			}
+
+			// Check for other special characters allowed in enhanced mode.
+			if(ctx->re[1] == L'Q') {
+				DPrintf((stderr, "parsePat: tmp literal: '%.*" StrF "'\n", Rest(ctx->re)));
+				ctx->cflags |= REG_LITERAL;
+				ctx->temp_cflags |= REG_LITERAL;
+				ctx->pflags |= PropHaveRegical;
+				ctx->re += 2;
+				if(ctx->re == ctx->re_end)
+					return REG_BADPAT;
+				StackPush(stack, int, ParseAtom);
+				break;
+				}
+
+			DPrintf((stderr, "parsePat: bleep: '%.*" StrF "'\n", Rest(ctx->re)));
+			++ctx->re;
+			switch(*ctx->re) {
+				case L'b':
+					status = AssertAtWB;
+					str = "WB";
+					goto NewAssert;
+				case L'B':
+					status = AssertAtNegWB;
+					str = "WB_NEG";
+					goto NewAssert;
+				case L'<':
+					status = AssertAtBOW;
+					str = "BOW";
+					goto NewAssert;
+				case L'>':
+					status = AssertAtEOW;
+					str = "EOW";
+					goto NewAssert;
+				case L'N':
+					goto NotNL;
+				case L'x':
+					{long val;
+					if((status = hexchar(ctx, &val)) != 0)
+						return status;
+					*pnode = ast_newLit(ctx->mem, val, val, ctx->position);
+					++ctx->position;
+					}
+					break;
+				default:
+					if(xisdigit(*ctx->re)) {
+
+						// Back reference.
+						int val = *ctx->re - L'0';
+						DPrintf((stderr, "parsePat: backref: '%.*" StrF "'\n", Rest(ctx->re - 1)));
+						if(ctx->cflags & REG_REVERSE)
+							return REG_EREGREV;
+						if(val == 0)
+							return REG_ESUBREG;
+						*pnode = ast_newLit(ctx->mem, LitBackref, val, ctx->position);
+						ctx->max_backref = Max(val, ctx->max_backref);
+						}
+					else {
+EscChar:
+						// Escaped character.
+						DPrintf((stderr, "parsePat: escaped: '%.*" StrF "'\n", Rest(ctx->re - 1)));
+						*pnode = ast_newLit(ctx->mem, *ctx->re, *ctx->re, ctx->position);
+						}
+					++ctx->position;
+					++ctx->re;
+					break;
+				}
+			if(*pnode == NULL)
+				return REG_ESPACE;
+			break;
+		case CharPeriod:	// The "any" symbol.
+			DPrintf((stderr, "parsePat: any: '%.*" StrF "'\n", Rest(ctx->re)));
+			if((ctx->cflags & (REG_NEWLINE | REG_ANY)) == REG_NEWLINE) {
+				ast_node_t *tmp1;
+				ast_node_t *tmp2;
+NotNL:
+				if((tmp1 = ast_newLit(ctx->mem, 0, L'\n' - 1, ctx->position)) == NULL ||
+				 (tmp2 = ast_newLit(ctx->mem, L'\n' + 1, XRE_CHAR_MAX, ctx->position)) == NULL ||
+				 (*pnode = ast_newUnion(ctx->mem, tmp1, tmp2)) == NULL)
+					return REG_ESPACE;
+				}
+			else if((*pnode = ast_newLit(ctx->mem, 0, XRE_CHAR_MAX, ctx->position)) == NULL)
+				return REG_ESPACE;
+			++ctx->position;
+			++ctx->re;
+			break;
+		case CharCircumflex:	// Beginning-of-line assertion.
+			status = AssertAtBOL;
+			str = "BOL";
+			goto NewAssert;
+		case CharDollar:	// End-of-line assertion.
+			status = AssertAtEOL;
+			str = "EOL";
+NewAssert:
+			DPrintf((stderr, "parsePat: %s: '%.*" StrF "'\n", str, Rest(ctx->re)));
+
+			// Repetition not allowed on an assertion.
+			if(ctx->re + 1 < ctx->re_end)
+				switch(ctx->re[1]) {
+					case CharAsterisk:
+					case CharPlus:
+					case CharHook:
+					case CharLBrace:
+						return REG_BADRPT;
+					}
+			if((*pnode = ast_newLit(ctx->mem, LitAssert, status, -1)) == NULL)
+				return REG_ESPACE;
+			++ctx->re;
+			break;
+		default:;
+ParseLit:
+			// Check for \E following prior \Q (enhanced mode only -- temp_cflags set).
+			if(ctx->temp_cflags && ctx->re + 1 < ctx->re_end && ctx->re[0] == CharBackslash && ctx->re[1] == L'E') {
+				ctx->cflags &= ~ctx->temp_cflags;
+				ctx->temp_cflags = 0;
+				DPrintf((stderr, "parsePat: end tmp, cflags %.4x: '%.*" StrF "'\n",
+				 ctx->cflags, Rest(ctx->re)));
+				ctx->re += 2;
+				if(ctx->re < ctx->re_end)
+					StackPush(stack, int, ParsePiece);
+				break;
+				}
+
+			// We must have an atom at this point.  If not, we have a logic error.
+			assert(ctx->re < ctx->re_end);
+			DPrintf((stderr, "parsePat: literal: '%.*" StrF "'\n", Rest(ctx->re)));
+
+			// Note that we can't use an xisalpha() test here because there may be characters which are alphabetic
+			// but neither upper or lower case.
+			if(ctx->cflags & REG_ICASE && (xisupper(*ctx->re) || xislower(*ctx->re))) {
+				ast_node_t *tmp1;
+				ast_node_t *tmp2;
+
+				// XXX - Can there be more than one opposite-case counterpoints for some character in some
+				// locale?  Or more than two characters which all should be regarded the same character if case
+				// is ignored?  If yes, there does not seem to be a portable way to detect it.  I guess that at
+				// least for multi-character collating elements there could be several opposite-case
+				// counterpoints, but they cannot be supported portably anyway.
+				if((tmp1 = ast_newLit(ctx->mem, xtoupper(*ctx->re), xtoupper(*ctx->re), ctx->position)) == NULL)
+					return REG_ESPACE;
+				if((tmp2 = ast_newLit(ctx->mem, xtolower(*ctx->re), xtolower(*ctx->re), ctx->position)) == NULL)
+					return REG_ESPACE;
+				if((*pnode = ast_newUnion(ctx->mem, tmp1, tmp2)) == NULL)
+					return REG_ESPACE;
+				}
+			else if((*pnode = ast_newLit(ctx->mem, *ctx->re, *ctx->re, ctx->position)) == NULL)
+				return REG_ESPACE;
+
+			++ctx->position;
+			++ctx->re;
+			break;
+		}
+
+	return 0;
+	}
+
+// Parse a regular expression pattern into an abstract syntax tree (AST), save in ctx->rootnode, and return status.
 int parsePat(parse_ctx_t *ctx) {
-	ast_node_t *result = NULL;
+	ast_node_t *node = NULL;
 	int status;
 	xstack_t *stack = ctx->stack;
 	int bottom = xstack_num_objects(stack);
-	int depth = 0;
-	int temp_cflags = 0;
-	char *str;
+#if XRE_Debug > 1
+	parse_re_stack_symbol_t sym;
+#endif
 
-	DPrintf((stderr, "parsePat: parsing '%.*" StrF "', len %d\n", ctx->len, ctx->re, ctx->len));
+	DPrintf((stderr, "parsePat: parsing '%.*" StrF "', len %lu\n", (int) ctx->len, ctx->re, ctx->len));
 	if(ctx->len == 0)
 		return REG_EMPTY;
 	if(ctx->keepfirst) {
@@ -1198,10 +1619,17 @@ int parsePat(parse_ctx_t *ctx) {
 	ctx->re_end = ctx->re + ctx->len;
 
 	// The following is basically just a recursive descent parser.  An explicit stack is used instead of recursive functions
-	// mostly because of two reasons: compatibility with systems which have an overflowable call stack, and efficiency (both
-	// in lines of code and speed).
+	// for two reasons: (1), compatibility with systems which have an overflowable call stack; and (2), efficiency (both in
+	// lines of code and speed).
 	while(xstack_num_objects(stack) > bottom) {
+#if XRE_Debug > 1
+		sym = xstack_pop_int(stack);
+		fprintf(stderr, "parsePat[%d]: %s begin: at '%.*" StrF "', cflags %.4x, temp_cflags %.4x\n",
+		 stack->idx, parseSymName[sym], Rest(ctx->re), ctx->cflags, ctx->temp_cflags);
+		switch(sym) {
+#else
 		switch(xstack_pop_int(stack)) {
+#endif
 			case ParseRE:
 				// Parse a full regexp.  A regexp is one or more branches, separated by the union operator '|'.
 				if(!(ctx->cflags & REG_LITERAL))
@@ -1209,27 +1637,25 @@ int parsePat(parse_ctx_t *ctx) {
 				StackPush(stack, int, ParseBranch);
 				break;
 			case ParseBranch:
-				// Parse a branch.  A branch is one or more pieces, concatenated. A piece is an atom possibly
+				// Parse a branch.  A branch is one or more pieces, concatenated.  A piece is an atom possibly
 				// followed by a postfix operator.
 				if(!(ctx->cflags & REG_LITERAL)) {
 					if(ctx->re == ctx->re_end)
 						return REG_EMPTY;
-					else {
-						switch(*ctx->re) {
-							case CharAsterisk:
-							case CharPlus:
-							case CharHook:
-							case CharLBrace:
-								return REG_BADRPT;
-							case CharPipe:
+					switch(*ctx->re) {
+						case CharAsterisk:
+						case CharPlus:
+						case CharHook:
+						case CharLBrace:
+							return REG_BADRPT;
+						case CharPipe:
+							return REG_EMPTY;
+						case CharRParen:
+							if(ctx->nest_level > 0 && ctx->re[-1] != CharLParen)
 								return REG_EMPTY;
-							case CharRParen:
-								if(depth > 0 && ctx->re[-1] != CharLParen)
-									return REG_EMPTY;
-							}
 						}
 					}
-				StackPush(stack, int, ParseCatenation);
+				StackPush(stack, int, ParseConcatenation);
 				StackPush(stack, int, ParsePiece);
 				break;
 			case ParsePiece:
@@ -1238,45 +1664,42 @@ int parsePat(parse_ctx_t *ctx) {
 					StackPush(stack, int, ParsePostfix);
 				StackPush(stack, int, ParseAtom);
 				break;
-			case ParseCatenation:
-				// If the expression has not ended, parse another piece.
-				{xchar_t c;
-				if(ctx->re == ctx->re_end)
+			case ParseConcatenation:
+				// If the expression has not ended and more remains than just "\E", parse another piece.
+				{size_t n = ctx->re_end - ctx->re;
+				xchar_t c;
+				if(n == 0 || (n == 2 && ctx->re[0] == CharBackslash && ctx->re[1] == L'E'))
 					break;
 				c = *ctx->re;
 				if(!(ctx->cflags & REG_LITERAL)) {
 					if(c == CharPipe)
 						break;
-					if(c == CharRParen && depth > 0) {
+					if(c == CharRParen && ctx->nest_level > 0) {
 						DPrintf((stderr, "parsePat: group end: '%.*" StrF "'\n", Rest(ctx->re)));
-						--depth;
+						--ctx->nest_level;
 						break;
 						}
 					}
 				if(ctx->cflags & REG_RIGHTASSOC) {
 
 					// Right associative concatenation.
-					StackPush(stack, voidptr, result);
-					StackPush(stack, int, ParsePostCatenation);
-					StackPush(stack, int, ParseCatenation);
+					StackPush(stack, voidptr, node);
+					StackPush(stack, int, ParsePostConcatenation);
+					StackPush(stack, int, ParseConcatenation);
 					StackPush(stack, int, ParsePiece);
 					}
 				else {
 					// Default case, left associative concatenation.
-					StackPush(stack, int, ParseCatenation);
-					StackPush(stack, voidptr, result);
-					StackPush(stack, int, ParsePostCatenation);
+					StackPush(stack, int, ParseConcatenation);
+					StackPush(stack, voidptr, node);
+					StackPush(stack, int, ParsePostConcatenation);
 					StackPush(stack, int, ParsePiece);
 					}
+				}
 				break;
-				}
-			case ParsePostCatenation:
-				{ast_node_t *tree = xstack_pop_voidptr(stack);
-				ast_node_t *tmp_node;
-				if((tmp_node = ast_newCat(ctx->mem, tree, result)) == NULL)
+			case ParsePostConcatenation:
+				if((node = ast_newCat(ctx->mem, xstack_pop_voidptr(stack), node)) == NULL)
 					return REG_ESPACE;
-				result = tmp_node;
-				}
 				break;
 			case ParseUnion:
 				if(ctx->re == ctx->re_end || ctx->cflags & REG_LITERAL)
@@ -1285,7 +1708,7 @@ int parsePat(parse_ctx_t *ctx) {
 					case CharPipe:
 						DPrintf((stderr, "parsePat: union: '%.*" StrF "'\n", Rest(ctx->re)));
 						StackPush(stack, int, ParseUnion);
-						StackPush(stack, voidptr, result);
+						StackPush(stack, voidptr, node);
 						StackPush(stack, int, ParsePostUnion);
 						StackPush(stack, int, ParseBranch);
 						++ctx->re;
@@ -1298,12 +1721,8 @@ int parsePat(parse_ctx_t *ctx) {
 					}
 				break;
 			case ParsePostUnion:
-				{ast_node_t *tmp_node;
-				ast_node_t *tree = xstack_pop_voidptr(stack);
-				if((tmp_node = ast_newUnion(ctx->mem, tree, result)) == NULL)
+				if((node = ast_newUnion(ctx->mem, (ast_node_t *) xstack_pop_voidptr(stack), node)) == NULL)
 					return REG_ESPACE;
-				result = tmp_node;
-				}
 				break;
 			case ParsePostfix:
 				// Parse postfix operators.
@@ -1313,11 +1732,10 @@ int parsePat(parse_ctx_t *ctx) {
 					case CharAsterisk:
 					case CharPlus:
 					case CharHook:
-						{ast_node_t *tmp_node;
-						int minimal = (ctx->cflags & REG_UNGREEDY) == REG_UNGREEDY;
+						{int minimal = (ctx->cflags & REG_UNGREEDY) == REG_UNGREEDY;
 						int rep_min = 0;
 						int rep_max = -1;
-#ifdef XRE_Debug
+#if XRE_Debug
 						const xchar_t *tmp_re;
 #endif
 
@@ -1325,7 +1743,7 @@ int parsePat(parse_ctx_t *ctx) {
 							rep_min = 1;
 						else if(*ctx->re == CharHook)
 							rep_max = 1;
-#ifdef XRE_Debug
+#if XRE_Debug
 						tmp_re = ctx->re;
 #endif
 						if(ctx->re + 1 < ctx->re_end) {
@@ -1347,10 +1765,8 @@ int parsePat(parse_ctx_t *ctx) {
 						DPrintf((stderr, "parsePat: %s iter: '%.*" StrF "'\n",
 						 minimal ? "minimal" : "greedy", Rest(tmp_re)));
 						++ctx->re;
-						if((tmp_node = ast_newIter(ctx->mem, result, rep_min, rep_max,
-						 minimal)) == NULL)
+						if((node = ast_newIter(ctx->mem, node, rep_min, rep_max, minimal)) == NULL)
 							return REG_ESPACE;
-						result = tmp_node;
 						StackPush(stack, int, ParsePostfix);
 						}
 						break;
@@ -1358,365 +1774,28 @@ int parsePat(parse_ctx_t *ctx) {
 						DPrintf((stderr, "parsePat: bound: '%.*" StrF "'\n", Rest(ctx->re)));
 						++ctx->re;
 
-						if((status = parseBrace(ctx, &result)) != REG_OK)
+						if((status = parseBrace(ctx, &node)) != 0)
 							return status;
 						StackPush(stack, int, ParsePostfix);
 						break;
 					}
 				break;
 			case ParseAtom:
-				// Parse an atom.  An atom is a regular expression enclosed in '()', an empty set of '()', a
-				// bracket expression, '.', '^', '$', a '\' followed by a character, or a single character.
-
-				// End of regexp (empty string)?
-				if(ctx->re == ctx->re_end || ctx->cflags & REG_LITERAL)
-					goto ParseLit;
-				switch(*ctx->re) {
-					case CharLParen:	// Parenthesized subexpression.
-
-						// Handle "(?...)" extensions in enhanced mode.  They work in a way similar to
-						// Perl's corresponding extensions.
-						if(ctx->cflags & REG_ENHANCED && (ctx->re + 1) < ctx->re_end &&
-						 ctx->re[1] == CharHook) {
-							char *msg;
-							int flag, new_cflags = ctx->cflags;
-							int bit = 1;
-							DPrintf((stderr, "parsePat: extension: '%.*" StrF "\n", Rest(ctx->re)));
-							ctx->re += 2;
-							for(;;) {
-								msg = NULL;
-								switch(*ctx->re) {
-									case L'A':
-										msg = "approx";
-										flag = REG_APPROX;
-										break;
-									case L'a':
-										msg = "any newline";
-										flag = REG_ANY;
-										break;
-									case L'i':
-										msg = "icase";
-										flag = REG_ICASE;
-										break;
-									case L'n':
-										msg = "newline";
-										flag = REG_NEWLINE;
-										break;
-									case L'r':
-										msg = "right assoc";
-										flag = REG_RIGHTASSOC;
-										break;
-									case L'U':
-										msg = "ungreedy";
-										flag = REG_UNGREEDY;
-										break;
-									case CharMinus:
-										DPrintf((stderr, "parsePat: turn off: '%.*" StrF
-										 "\n", Rest(ctx->re)));
-										++ctx->re;
-										bit = 0;
-										break;
-									case CharColon:
-										DPrintf((stderr, "parsePat: non-capturing: '%.*"
-										 StrF "\n", Rest(ctx->re)));
-										++ctx->re;
-										++depth;
-										goto EndOpts;
-									case CharHash:
-										DPrintf((stderr, "parsePat: comment: '%.*" StrF
-										 "\n", Rest(ctx->re)));
-
-										// A comment can contain any character except a
-										// right parenthesis.
-										while(*ctx->re != CharRParen &&
-										 ctx->re < ctx->re_end)
-											++ctx->re;
-										if(*ctx->re == CharRParen &&
-										 ctx->re < ctx->re_end) {
-											++ctx->re;
-											goto EndOpts;
-											}
-										else
-											return REG_BADPAT;
-									case CharRParen:
-										if(ctx->cflags & REG_REVERSED)
-											return REG_EREGREV;
-										++ctx->re;
-										goto EndOpts;
-									default:
-										return REG_BADPAT;
-									}
-								if(msg != NULL) {
-									DPrintf((stderr, "parsePat: %s: '%.*" StrF "\n", msg,
-									 Rest(ctx->re)));
-									if(bit)
-										new_cflags |= flag;
-									else
-										new_cflags &= ~flag;
-									++ctx->re;
-									}
-								}
-EndOpts:
-							// Turn on the cflags changes for the rest of the enclosing group.
-							StackPush(stack, int, ctx->cflags);
-							StackPush(stack, int, ParseRestoreCFlags);
-							StackPush(stack, int, ParseRE);
-							ctx->cflags = new_cflags;
-							break;
-							}
-						++depth;
-						if(ctx->cflags & REG_ENHANCED && ctx->re + 2 < ctx->re_end &&
-						 ctx->re[1] == CharHook && ctx->re[2] == CharColon) {
-							DPrintf((stderr, "parsePat: group begin: '%.*" StrF
-							 "', no submatch\n", Rest(ctx->re)));
-
-							// Don't mark for submatching.
-							ctx->re += 3;
-							StackPush(stack, int, ParseRE);
-							}
-						else {
-							DPrintf((stderr, "parsePat: group begin: '%.*" StrF "', submatch %d\n",
-							 Rest(ctx->re), ctx->submatch_id));
-							++ctx->re;
-
-							// First parse a whole RE, then mark the resulting tree for submatching.
-							StackPush(stack, int, ctx->submatch_id);
-							StackPush(stack, int, ParseMarkForSubmatch);
-							StackPush(stack, int, ParseRE);
-							++ctx->submatch_id;
-							}
-						break;
-					case CharRParen:	// End of current subexpression.
-						if(depth > 0) {
-							DPrintf((stderr, "parsePat: empty: '%.*" StrF "'\n", Rest(ctx->re)));
-
-							// We were expecting an atom, but instead the current subexpression was
-							// closed.  POSIX leaves the meaning of this to be implementation-
-							// defined.  We interpret this as an empty expression (which matches an
-							// empty string).
-							if((result = ast_newLit(ctx->mem, LitEmpty, -1, -1)) == NULL)
-								return REG_ESPACE;
-							}
-						else
-							goto ParseLit;
-						break;
-					case CharLBracket:	// Bracket expression.
-						DPrintf((stderr, "parsePat: bracket: '%.*" StrF "'\n", Rest(ctx->re)));
-						++ctx->re;
-						if((status = parseBracket(ctx, &result)) != REG_OK)
-							return status;
-						break;
-					case CharBackslash:	// Shortcut or escaped character.
-						if(ctx->re + 1 == ctx->re_end)	// Trailing backslash.
-							return REG_EESCAPE;
-
-						// If enhanced mode, check if \x shortcut.  If found, parse the expanded text
-						// recursively.
-						if(ctx->cflags & REG_ENHANCED) {
-							xchar_t buf[64];
-							expandShortcut(buf, ctx->re + 1, false);
-							if(buf[0] != 0) {
-								parse_ctx_t subctx;
-								memcpy(&subctx, ctx, sizeof(subctx));
-								subctx.re = subctx.re_start = buf;
-								subctx.len = xstrlen(buf);
-								subctx.re_end = buf + subctx.len;
-								subctx.keepfirst = false;
-								if((status = parsePat(&subctx)) != REG_OK)
-									return status;
-								ctx->re += 2;
-								ctx->position = subctx.position;
-								result = subctx.result;
-								break;
-								}
-							}
-						else {
-							// Escaped character.
-							++ctx->re;
-							goto EscChar;
-							}
-
-						// Enhanced mode.  Check for other metacharacters.
-						if(ctx->re[1] == L'Q') {
-							DPrintf((stderr, "parsePat: tmp literal: '%.*" StrF "'\n",
-							 Rest(ctx->re)));
-							ctx->cflags |= REG_LITERAL;
-							temp_cflags |= REG_LITERAL;
-							ctx->re += 2;
-							StackPush(stack, int, ParseAtom);
-							break;
-							}
-
-						DPrintf((stderr, "parsePat: bleep: '%.*" StrF "'\n", Rest(ctx->re)));
-						++ctx->re;
-						switch(*ctx->re) {
-							case L'b':
-								status = AssertAtWB;
-								str = "WB";
-								goto NewAssert;
-							case L'B':
-								status = AssertAtNegWB;
-								str = "WB_NEG";
-								goto NewAssert;
-							case L'<':
-								status = AssertAtBOW;
-								str = "BOW";
-								goto NewAssert;
-							case L'>':
-								status = AssertAtEOW;
-								str = "EOW";
-								goto NewAssert;
-							case L'N':
-								goto NotNL;
-							case L'x':
-								++ctx->re;	// May be past end.
-								{long val;
-								int maxDigits = 2;
-								DPrintf((stderr, "parsePat: hex value: '%.*" StrF "'\n",
-								 Rest(ctx->re - 2)));
-								if(ctx->re < ctx->re_end && *ctx->re == CharLBrace) {
-									maxDigits = 16;
-									++ctx->re;
-									}
-								if((status = hexnum(ctx, maxDigits, &val)) != REG_OK)
-									return status;
-								result = ast_newLit(ctx->mem, (int) val, (int) val,
-								 ctx->position);
-								++ctx->position;
-								}
-								break;
-							default:
-								if(xisdigit(*ctx->re)) {
-
-									// Back reference.
-									int val = *ctx->re - L'0';
-									DPrintf((stderr, "parsePat: backref: '%.*" StrF "'\n",
-									 Rest(ctx->re - 1)));
-									if(ctx->cflags & REG_REVERSED)
-										return REG_EREGREV;
-									if(val == 0)
-										return REG_ESUBREG;
-									result = ast_newLit(ctx->mem, LitBackref, val,
-									 ctx->position);
-									ctx->max_backref = Max(val, ctx->max_backref);
-									}
-								else {
-EscChar:
-									// Escaped character.
-									DPrintf((stderr, "parsePat: escaped: '%.*" StrF "'\n",
-									 Rest(ctx->re - 1)));
-									result = ast_newLit(ctx->mem, *ctx->re,
-									 *ctx->re, ctx->position);
-									}
-								++ctx->position;
-								++ctx->re;
-								break;
-							}
-						if(result == NULL)
-							return REG_ESPACE;
-						break;
-					case CharPeriod:	// The "any" symbol.
-						DPrintf((stderr, "parsePat: any: '%.*" StrF "'\n", Rest(ctx->re)));
-						if((ctx->cflags & (REG_NEWLINE | REG_ANY)) == REG_NEWLINE) {
-							ast_node_t *tmp1;
-							ast_node_t *tmp2;
-NotNL:
-							if((tmp1 = ast_newLit(ctx->mem, 0, L'\n' - 1,
-							 ctx->position)) == NULL ||
-							 (tmp2 = ast_newLit(ctx->mem, L'\n' + 1, XRE_CHAR_MAX,
-							 ctx->position)) == NULL ||
-							 (result = ast_newUnion(ctx->mem, tmp1, tmp2)) == NULL)
-								return REG_ESPACE;
-							}
-						else if((result = ast_newLit(ctx->mem, 0, XRE_CHAR_MAX,
-						 ctx->position)) == NULL)
-							return REG_ESPACE;
-						++ctx->position;
-						++ctx->re;
-						break;
-					case CharCircumflex:	// Beginning-of-line assertion.
-						status = AssertAtBOL;
-						str = "BOL";
-						goto NewAssert;
-					case CharDollar:	// End-of-line assertion.
-						status = AssertAtEOL;
-						str = "EOL";
-NewAssert:
-						DPrintf((stderr, "parsePat: %s: '%.*" StrF "'\n", str, Rest(ctx->re)));
-
-						// Repetition not allowed on an assertion.
-						if(ctx->re + 1 < ctx->re_end)
-							switch(ctx->re[1]) {
-								case CharAsterisk:
-								case CharPlus:
-								case CharHook:
-								case CharLBrace:
-									return REG_BADRPT;
-								}
-						if((result = ast_newLit(ctx->mem, LitAssert, status, -1)) == NULL)
-							return REG_ESPACE;
-						++ctx->re;
-						break;
-					default:;
-ParseLit:
-						// Check for \E following prior \Q (enhanced mode only - temp_cflags set).
-						if(temp_cflags && ctx->re + 1 < ctx->re_end &&
-						 ctx->re[0] == CharBackslash && ctx->re[1] == L'E') {
-							DPrintf((stderr, "parsePat: end tmps: '%.*" StrF "'\n", Rest(ctx->re)));
-							ctx->cflags &= ~temp_cflags;
-							temp_cflags = 0;
-							ctx->re += 2;
-							StackPush(stack, int, ParsePiece);
-							break;
-							}
-
-						// We must have an atom at this point.  If not, we have a logic error.
-						assert(ctx->re < ctx->re_end);
-						DPrintf((stderr, "parsePat: literal: '%.*" StrF "'\n", Rest(ctx->re)));
-
-						// Note that we can't use an xisalpha() test here because there may be
-						// characters which are alphabetic but neither upper or lower case.
-						if(ctx->cflags & REG_ICASE && (xisupper(*ctx->re) || xislower(*ctx->re))) {
-							ast_node_t *tmp1;
-							ast_node_t *tmp2;
-
-							// XXX - Can there be more than one opposite-case counterpoints for some
-							// character in some locale?  Or more than two characters which all
-							// should be regarded the same character if case is ignored?  If yes,
-							// there does not seem to be a portable way to detect it.  I guess that
-							// at least for multi-character collating elements there could be
-							// several opposite-case counterpoints, but they cannot be supported
-							// portably anyway.
-							if((tmp1 = ast_newLit(ctx->mem, xtoupper(*ctx->re),
-							 xtoupper(*ctx->re), ctx->position)) == NULL)
-								return REG_ESPACE;
-							if((tmp2 = ast_newLit(ctx->mem, xtolower(*ctx->re),
-							 xtolower(*ctx->re), ctx->position)) == NULL)
-								return REG_ESPACE;
-							if((result = ast_newUnion(ctx->mem, tmp1, tmp2)) == NULL)
-								return REG_ESPACE;
-							}
-						else if((result = ast_newLit(ctx->mem, *ctx->re, *ctx->re,
-						 ctx->position)) == NULL)
-							return REG_ESPACE;
-
-						++ctx->position;
-						++ctx->re;
-						break;
-					}
+				if((status = parseAtom(ctx, &node)) != 0)
+					return status;
 				break;
 			case ParseMarkForSubmatch:
 				{int submatch_id = xstack_pop_int(stack);
-				if(result->submatch_id >= 0) {
-					ast_node_t *n, *tmp_node;
-					if((n = ast_newLit(ctx->mem, LitEmpty, -1, -1)) == NULL ||
-					 (tmp_node = ast_newCat(ctx->mem, n, result)) == NULL)
+				if(node->submatch_id >= 0) {
+					ast_node_t *tmp_node1, *tmp_node2;
+					if((tmp_node2 = ast_newLit(ctx->mem, LitEmpty, -1, -1)) == NULL ||
+					 (tmp_node1 = ast_newCat(ctx->mem, tmp_node2, node)) == NULL)
 						return REG_ESPACE;
-					tmp_node->num_submatches = result->num_submatches;
-					result = tmp_node;
+					tmp_node1->num_submatches = node->num_submatches;
+					node = tmp_node1;
 					}
-				result->submatch_id = submatch_id;
-				++result->num_submatches;
+				node->submatch_id = submatch_id;
+				++node->num_submatches;
 				}
 				break;
 			case ParseRestoreCFlags:
@@ -1724,336 +1803,17 @@ ParseLit:
 				break;
 			default:
 				assert(0);
-				break;
 			}
 		}
+	DPrintf((stderr, "parsePat: parse '%.*" StrF "' END\n", (int) ctx->len, ctx->re_start));
 
 	// Check for missing closing parentheses.
-	if(depth > 0)
+	if(ctx->nest_level > 0)
 		return REG_EPAREN;
 
-	ctx->result = result;
-	return REG_OK;
+	ctx->rootnode = node;
+	return 0;
 	}
-
-#if EnableReverse
-
-// Regular expression reversal routines.
-
-static bool quoteMode = false;
-
-// Copy pattern segment to dest.  Return updated src.
-static const xchar_t *copylast(xchar_t **pdest, const xchar_t *src0, const xchar_t *src) {
-
-	if(src > src0) {
-		int len = src - src0;
-		*pdest -= len;
-		xmemcpy(*pdest, src0, len);
-		}
-	return src;
-	}
-
-// Span a character class.  Update src to terminating ']' if possible.  Return status.
-static int ccspan(const xchar_t **psrc, int cflags) {
-	const xchar_t *src = *psrc;
-	xchar_t c;
-
-	// Skip over any initial '^' or ']' character.
-	if(*++src == CharCircumflex)
-		++src;
-	if(*src == CharRBracket)
-		++src;
-
-	// Scan characters, skipping over special sequences, until ']' is found.
-	for(;;) {
-		switch(*src) {
-			case L'\0':
-				return REG_EBRACK;			// Error.
-			case CharBackslash:
-				if(cflags & REG_ENHANCED) {
-					if(src[1] == L'\0')
-						return REG_EBRACK;
-					goto Skip;
-					}
-				break;
-			case CharLBracket:
-				switch(c = src[1]) {
-					case CharColon: 	// [:
-					case CharPeriod:	// [.
-					case CharEqual: 	// [=
-						if((src = xstrchr(src + 2, c)) == NULL || src[1] != CharRBracket)
-							return (c == CharColon) ? REG_ECTYPE : REG_ECOLLATE;
-Skip:
-						src += 2;
-						continue;
-					}
-				break;
-			case CharRBracket:
-				if(src[-1] != CharMinus)
-					goto Retn;
-			}
-		++src;
-		}
-Retn:
-	*psrc = src;
-	return REG_OK;
-	}
-
-// Copy consecutive RE atoms from 'src' to 'dest' in reverse order and copy single (literal) characters between \Q and \E.
-// Scanning stops at a '|', ')', or end of pattern.  Update 'src' and 'dest' pointers and return status, including REG_EMPTY if
-// an empty atom list was found.
-static int atomcpy(xchar_t **pdest, const xchar_t **psrc, int cflags) {
-	int status;
-	xchar_t c;
-	bool quoteOn;
-	const xchar_t *src0;
-	const xchar_t *src = *psrc;
-	xchar_t *dest = *pdest;
-
-	// Loop though source pattern, finding the position of complete atoms.  Once a character is found that is not part of
-	// the current atom, write the previous one.  However, write single characters between \Q and \E.
-	src0 = src;
-	for(;;) {
-		c = *src;
-
-		// Check for \Q and \E.
-		if(cflags & REG_ENHANCED && c == CharBackslash) {
-			switch(src[1]) {
-				case L'Q':
-					c = L'E';
-					quoteOn = true;
-					goto DoQuote;
-				case L'E':
-					c = L'Q';
-					quoteOn = false;
-DoQuote:
-					if(quoteOn == quoteMode)
-						return REG_BADPAT;
-					src0 = copylast(&dest, src0, src);
-					quoteMode = quoteOn;
-					dest -= 2;
-					dest[0] = CharBackslash;
-					dest[1] = c;
-					src0 = src += 2;
-					continue;
-				}
-			}
-
-		if(!quoteMode) {
-			switch(c) {
-				case CharBackslash:
-					if(src[1] == L'\0')
-						return REG_EESCAPE;	// Error.
-					src0 = copylast(&dest, src0, src);
-					if(cflags & REG_ENHANCED) {
-						switch(src[1]) {
-							case L'x':
-								src += 2;
-								if(*src == CharLBrace)
-									++src;
-								while(isxdigit(*src))
-									++src;
-								if(*src == CharRBrace)
-									++src;
-								continue;
-							}
-						}
-					src += 2;
-					continue;
-				case CharLBracket:
-					src0 = copylast(&dest, src0, src);
-					if((status = ccspan(&src, cflags)) != REG_OK)
-						return status;
-					goto Onward;
-				case CharAsterisk:
-				case CharPlus:
-					goto Onward;
-				case CharHook:
-					if(!(cflags & REG_ENHANCED) && src > src0) {
-
-						// Check for minimal repetition op '?', which is a literal character here.
-						switch(src[-1]) {
-							case CharAsterisk:
-							case CharPlus:
-							case CharHook:
-							case CharRBrace:
-								goto Literal;
-							}
-						}
-					goto Onward;
-				case CharLBrace:
-					if((src = xstrchr(src, CharRBrace)) == NULL)
-						return REG_EBRACE;	// Error.
-					goto Onward;
-				case CharLParen:
-
-					// Beginning of a group.
-					(void) copylast(&dest, src0, src);
-					if((status = grpcpy(&dest, &src, cflags & ~CompTopLevel)) != REG_OK)
-						return status;		// Error.
-					src0 = src;
-					continue;
-				case CharRBrace:
-					return REG_EBRACE;
-				case CharRBracket:
-					return REG_EBRACK;
-				case CharPipe:
-				case CharRParen:
-				case L'\0':
-					goto Done;
-				default:
-					goto Literal;
-				}
-			}
-		else {
-Literal:
-			// Singleton atom or literal character.
-			src0 = copylast(&dest, src0, src);
-			}
-Onward:
-		++src;
-		}
-Done:
-	(void) copylast(&dest, src0, src);
-	if(src == *psrc)
-		return REG_EMPTY;
-	*psrc = src;
-	*pdest = dest;
-	return REG_OK;
-	}
-
-// Copy one RE group (parenthesized subexpression or whole RE) to 'dest' in reverse order preceded by any closure modifiers
-// which follow group.  Group ends at a right paren or at end of pattern (when called at top level).  Update 'src' and 'dest'
-// pointers and return status.
-int grpcpy(xchar_t **pdest, const xchar_t **psrc, int cflags) {
-	int status;
-	xchar_t c;
-	unsigned len;
-	const xchar_t *src0 = NULL;
-	const xchar_t *hook0 = NULL;
-	const xchar_t *hook1;
-	const xchar_t *src = *psrc;
-	xchar_t *dest = *pdest;
-	bool needrparen = false;
-	xchar_t wkbuf[xstrlen(src) + 1];
-	xchar_t *dest1 = wkbuf + elementsof(wkbuf) - 1;
-	*dest1 = L'\0';
-
-	// REG_ENHANCED group syntax:
-	// (?# This is a comment)
-	// (?:.+)
-	// (?in-U)
-	// (?in-U:.*)
-	if(!(cflags & CompTopLevel) && *src == CharLParen) {
-		needrparen = true;
-		*--dest1 = CharRParen;
-		++src;
-		switch(*src) {
-			case CharHook:
-				if(cflags & REG_ENHANCED) {
-					hook0 = src++;
-					if(*src == CharHash) {
-						if((hook1 = src = xstrchr(src, CharRParen)) == NULL)
-							return REG_EPAREN;
-						goto EndHook;
-						}
-					if(*src == CharColon)
-						hook1 = ++src;
-					else {					// Must be a letter.
-						while(isalpha(*src) || *src == CharMinus)
-							++src;
-						if(*src == CharColon)
-							hook1 = ++src;
-						else if(*src != CharRParen)
-							return REG_EPAREN;
-						else {
-							hook1 = src;
-							goto EndHook;
-							}
-						}
-					}
-				break;
-			case CharRParen:
-				// Have "()".
-				goto EndGroup;
-			case L'\0':
-				return REG_EPAREN;
-			}
-		}
-
-	// Scan pattern and process each RE delimited by '|' or ')' via atomcpy().
-	for(;;) {
-		if((status = atomcpy(&dest1, &src, cflags)) != REG_OK)
-			return status;
-		switch(c = *src) {
-			case L'\0':
-				if(needrparen)
-					return REG_EPAREN;
-				goto GroupEnd;
-			case CharRParen:
-				if(!needrparen)
-					return REG_EPAREN;
-				if(hook0 != NULL) {
-EndHook:
-					dest1 -= (len = hook1 - hook0);
-					xmemcpy(dest1, hook0, len);
-					}
-EndGroup:
-				*--dest1 = CharLParen;
-				++src;
-
-				// Scan for closure characters and/or modifiers following ')'.
-				src0 = src;
-				for(;;) {
-					switch(*src) {
-						case CharHook:
-							if(!(cflags & REG_ENHANCED)) {
-
-								// Check for minimal repetition op '?', which is a literal
-								// character here.
-								switch(src[-1]) {
-									case CharAsterisk:
-									case CharPlus:
-									case CharHook:
-									case CharRBrace:
-										goto GroupEnd;
-									}
-								}
-							break;
-						case CharAsterisk:
-						case CharPlus:
-							break;
-						case CharLBrace:
-							if((src = xstrchr(src, CharRBrace)) == NULL)
-								return REG_EBRACE;
-							break;
-						default:
-							goto GroupEnd;
-						}
-					++src;
-					}
-				goto GroupEnd;
-			default:				// |
-				*--dest1 = CharPipe;
-				++src;
-			}
-		}
-GroupEnd:
-	// End of group.  Copy closure modifiers (if any) and reversed group in wkbuf to dest, and return at character past ')'
-	// or at terminating null.
-	if(src0 != NULL && (len = src - src0) > 0) {
-		dest -= len;
-		xmemcpy(dest, src0, len);
-		}
-	len = xstrlen(dest1);
-	dest -= len;
-	xmemcpy(dest, dest1, len);
-	*psrc = src;
-	*pdest = dest;
-	return REG_OK;
-	}
-
-#endif // EnableReverse
 
 #ifdef __cplusplus
 	}

@@ -34,7 +34,7 @@ $(ObjDir):
 
 txre: $(ObjDir)/txre.o $(ObjDir)/tutil.o
 	$(CC) -o $@ $(ObjDir)/txre.o $(ObjDir)/tutil.o $(XRELib)
-	strip txre
+	strip $@
 
 $(ObjDir)/txre.o: $(SrcDir)/txre.c $(Hdrs)
 	$(CC) -c -o $@ $(CFLAGS) $(SrcDir)/txre.c

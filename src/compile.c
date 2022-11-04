@@ -41,13 +41,13 @@ typedef enum {
 	leftfork, rightfork
 	} fork_t;
 
-// Insert a catenation node to the root of the tree given in 'node'.  A new tag with number 'tag_id' is added as the left or
-// right child, and the old left or right child becomes the old root.
-static int addTag(fork_t child, memhdr_t *mem, ast_node_t *node, int tag_id) {
+// Insert a concatenation node into the root of the tree given by 'node'.  A new tag with number 'tag_id' is added as the left
+// or right child, and the old left or right child becomes the old root.
+static int addCatTag(fork_t child, memhdr_t *mem, ast_node_t *node, int tag_id) {
 	ast_cat_t *cnode;
 	ast_node_t **pnode1, **pnode2;
 
-	DPrintf((stderr, "add_tag: %s, tag %d\n", child == leftfork ? "left" : "right", tag_id));
+	DPrintf((stderr, "addCatTag: %s, tag %d\n", child == leftfork ? "left" : "right", tag_id));
 
 	if((cnode = mem_alloc(mem, sizeof(*cnode))) == NULL)
 		return REG_ESPACE;
@@ -59,8 +59,7 @@ static int addTag(fork_t child, memhdr_t *mem, ast_node_t *node, int tag_id) {
 		pnode1 = &cnode->right;
 		pnode2 = &cnode->left;
 		}
-	if((*pnode1 = ast_newLit(mem, LitTag, tag_id, -1)) == NULL ||
-	 (*pnode2 = mem_alloc(mem, sizeof(ast_node_t))) == NULL)
+	if((*pnode1 = ast_newLit(mem, LitTag, tag_id, -1)) == NULL || (*pnode2 = mem_alloc(mem, sizeof(ast_node_t))) == NULL)
 		return REG_ESPACE;
 
 	(*pnode2)->obj = node->obj;
@@ -72,7 +71,8 @@ static int addTag(fork_t child, memhdr_t *mem, ast_node_t *node, int tag_id) {
 	(*pnode2)->num_tags = 0;
 	node->obj = cnode;
 	node->type = AST_Cat;
-	return REG_OK;
+
+	return 0;
 	}
 
 // Go through 'regset' and set given tag in submatch data in proper place.
@@ -114,7 +114,7 @@ static void add_min_tag(tnfa_t *tnfa, int tag, int *minTag) {
 // minimal tags.  Also, if mem is not NULL, the 'parents' members of all submatch_data_t objects (in tnfa->submatch_data array)
 // are determined and set.
 static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnfa) {
-	int status = REG_OK;
+	int status = 0;
 	ast_node_t *node = tree;			// Tree node we are currently looking at.
 	int bottom = xstack_num_objects(stack);
 	bool firstPass = (mem == NULL);
@@ -128,7 +128,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 	tag_states_t *saved_states;
 	tag_direction_t direction = TagMinimize;
 
-	DPrintf((stderr, "add_tags: begin %s pass\n", firstPass ? "first" : "second"));
+	DPrintf((stderr, "addTags: begin %s pass\n", firstPass ? "first" : "second"));
 	if(!firstPass) {
 		tnfa->end_tag = 0;
 		tnfa->minimal_tags[0] = -1;
@@ -217,8 +217,8 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 								// Regset is not empty, so add a tag before the literal or
 								// backref.
 								if(!firstPass) {
-									if((status = addTag(leftfork, mem, node,
-									 tag)) != REG_OK)
+									if((status = addCatTag(leftfork, mem, node,
+									 tag)) != 0)
 										goto Retn;
 									tnfa->tag_directions[tag] = direction;
 									if(minimal_tag >= 0) {
@@ -278,7 +278,6 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 						// Process left child.
 						StackPushR(stack, voidptr, left);
 						StackPushR(stack, int, ATRecurse);
-
 						}
 						break;
 					case AST_Iter:
@@ -293,19 +292,15 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 							}
 						StackPushR(stack, voidptr, node);
 						StackPushR(stack, int, ATAfterIteration);
-						StackPushR(stack, voidptr, iter->arg);
+						StackPushR(stack, voidptr, iter->sub);
 						StackPushR(stack, int, ATRecurse);
 
 						// Regset is not empty, so add a tag here.
 						if(regset[0] >= 0 || iter->minimal) {
 							if(!firstPass) {
-								if((status = addTag(leftfork, mem, node, tag)) != REG_OK)
+								if((status = addCatTag(leftfork, mem, node, tag)) != 0)
 									goto Retn;
-#if WrongTagOrder
-								tnfa->tag_directions[tag] = iter->minimal ? TagMaximize :
-#else
 								tnfa->tag_directions[tag] = iter->minimal ? TagMinimize :
-#endif
 								 direction;
 								if(minimal_tag >= 0) {
 									DPrintf((stderr, "Minimal %d, %d\n", minimal_tag, tag));
@@ -366,7 +361,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 						// Regset is not empty, so add a tag here.
 						if(regset[0] >= 0) {
 							if(!firstPass) {
-								if((status = addTag(leftfork, mem, node, tag)) != REG_OK)
+								if((status = addCatTag(leftfork, mem, node, tag)) != 0)
 									goto Retn;
 								tnfa->tag_directions[tag] = direction;
 								if(minimal_tag >= 0) {
@@ -409,7 +404,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 
 				node = xstack_pop_voidptr(stack);
 				if(firstPass) {
-					node->num_tags = ((ast_iter_t *) node->obj)->arg->num_tags + xstack_pop_int(stack);
+					node->num_tags = ((ast_iter_t *) node->obj)->sub->num_tags + xstack_pop_int(stack);
 					minimal_tag = -1;
 					}
 				else {
@@ -472,15 +467,15 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 				// guarantees that we prefer the left child over the right child.
 				// XXX - This is not always necessary (if the children have tags which must be seen for every
 				// match of that child).
-				// XXX - Check if this is the only place where addTag(rightfork,...) is used.  If so, use
-				// addTag(leftfork,...) (putting the tag before the child as opposed after the child) and get
+				// XXX - Check if this is the only place where addCatTag(rightfork,...) is used.  If so, use
+				// addCatTag(leftfork,...) (putting the tag before the child as opposed after the child) and get
 				// rid of leftfork and rightfork -- just use left always.
 				if(node->num_submatches > 0) {
 					if(!firstPass) {
-						if((status = addTag(rightfork, mem, left, leftTag)) != REG_OK)
+						if((status = addCatTag(rightfork, mem, left, leftTag)) != 0)
 							goto Retn;
 						tnfa->tag_directions[leftTag] = TagMaximize;
-						if((status = addTag(rightfork, mem, right, rightTag)) != REG_OK)
+						if((status = addCatTag(rightfork, mem, right, rightTag)) != 0)
 							goto Retn;
 						tnfa->tag_directions[rightTag] = TagMaximize;
 						}
@@ -505,7 +500,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 			}
 		}
 
-	DPrintf((stderr, "add_tags: %s pass complete.  num_tags: %d, num_minimals: %d\n",
+	DPrintf((stderr, "addTags: %s pass complete.  num_tags: %d, num_minimals: %d\n",
 	 firstPass ? "first" : "second", num_tags, num_minimals));
 	assert(tree->num_tags == num_tags);
 	tnfa->end_tag = tnfa->num_tags = num_tags;
@@ -616,13 +611,13 @@ static int copyAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int flags, i
 						break;
 					case AST_Iter:
 						{ast_iter_t *iter = node->obj;
-						StackPush(stack, voidptr, iter->arg);
+						StackPush(stack, voidptr, iter->sub);
 						StackPush(stack, int, CopyRecurse);
-						if((*result = ast_newIter(mem, iter->arg, iter->min, iter->max,
+						if((*result = ast_newIter(mem, iter->sub, iter->min, iter->max,
 						 iter->minimal)) == NULL)
 							return REG_ESPACE;
 						iter = (*result)->obj;
-						result = &iter->arg;
+						result = &iter->sub;
 						}
 						break;
 					default:
@@ -635,7 +630,7 @@ static int copyAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int flags, i
 		}
 
 	*pos_add += num_copied;
-	return REG_OK;
+	return 0;
 	}
 
 typedef enum {
@@ -702,7 +697,7 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 						StackPush(stack, int, pos_add);
 						StackPush(stack, voidptr, node);
 						StackPush(stack, int, ExpandAfterIter);
-						StackPush(stack, voidptr, iter->arg);
+						StackPush(stack, voidptr, iter->sub);
 						StackPush(stack, int, ExpandRecurse);
 
 						// If we are going to expand this node at ExpandAfterIter, then don't increase
@@ -737,8 +732,8 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 						flags = ((j + 1 < iter->min) ? CopyRemoveTags : CopyMaximizeFirstTag);
 						DPrintf((stderr, "  iter copy %d, pos_add %d, flags %d\n", j, pos_add, flags));
 						pos_add_save = pos_add;
-						if((status = copyAST(mem, stack, iter->arg, flags, &pos_add, tag_directions,
-						 &copy, &max_pos)) != REG_OK)
+						if((status = copyAST(mem, stack, iter->sub, flags, &pos_add, tag_directions,
+						 &copy, &max_pos)) != 0)
 							return status;
 						seq1 = (seq1 == NULL) ? copy : ast_newCat(mem, seq1, copy);
 						if(seq1 == NULL)
@@ -749,8 +744,8 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 
 						// No upper limit.
 						pos_add_save = pos_add;
-						if((status = copyAST(mem, stack, iter->arg, 0, &pos_add, NULL, &seq2,
-						 &max_pos)) != REG_OK)
+						if((status = copyAST(mem, stack, iter->sub, 0, &pos_add, NULL, &seq2,
+						 &max_pos)) != 0)
 							return status;
 						if((seq2 = ast_newIter(mem, seq2, 0, -1, 0)) == NULL)
 							return REG_ESPACE;
@@ -759,8 +754,8 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 						for(j = iter->min; j < iter->max; ++j) {
 							ast_node_t *tmp, *copy;
 							pos_add_save = pos_add;
-							if((status = copyAST(mem, stack, iter->arg, 0, &pos_add, NULL, &copy,
-							 &max_pos)) != REG_OK)
+							if((status = copyAST(mem, stack, iter->sub, 0, &pos_add, NULL, &copy,
+							 &max_pos)) != 0)
 								return status;
 							seq2 = (seq2 == NULL) ? copy : ast_newCat(mem, copy, seq2);
 							if(seq2 == NULL)
@@ -831,11 +826,11 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 	*position += pos_add_total;
 	assert(max_pos <= *position);
 
-#ifdef XRE_Debug
+#if XRE_Debug
 	printAST(ast, "post-expansion");
 	fprintf(stderr, "*position %d, max_pos %d\n", *position, max_pos);
 #endif
-	return REG_OK;
+	return 0;
 	}
 
 static void setEmpty(pos_and_tags_t *p) {
@@ -987,7 +982,7 @@ static int matchEmpty(xstack_t *stack, ast_node_t *node, int *tags, int *asserti
 	if(params_seen != NULL)
 		*params_seen = false;
 
-	if((status = xstack_push_voidptr(stack, node)) != REG_OK)
+	if((status = xstack_push_voidptr(stack, node)) != 0)
 		return status;
 
 	// Walk through the tree recursively.
@@ -1036,10 +1031,12 @@ static int matchEmpty(xstack_t *stack, ast_node_t *node, int *tags, int *asserti
 				// Subexpressions starting earlier take priority over ones starting later, so we prefer the left
 				// subexpression over the right subexpression.
 				uni = (ast_union_t *) node->obj;
-				if(uni->left->nullable)
-					StackPush(stack, voidptr, uni->left)
-				else if(uni->right->nullable)
-					StackPush(stack, voidptr, uni->right)
+				if(uni->left->nullable) {
+					StackPush(stack, voidptr, uni->left);
+					}
+				else if(uni->right->nullable) {
+					StackPush(stack, voidptr, uni->right);
+					}
 				else
 					assert(0);
 				break;
@@ -1055,8 +1052,8 @@ static int matchEmpty(xstack_t *stack, ast_node_t *node, int *tags, int *asserti
 				// A match with an empty string is preferred over no match at all, so we go through the argument
 				// if possible.
 				iter = (ast_iter_t *) node->obj;
-				if(iter->arg->nullable)
-					StackPush(stack, voidptr, iter->arg);
+				if(iter->sub->nullable)
+					StackPush(stack, voidptr, iter->sub);
 				break;
 			default:
 				assert(0);
@@ -1064,7 +1061,7 @@ static int matchEmpty(xstack_t *stack, ast_node_t *node, int *tags, int *asserti
 			}
 		}
 
-	return REG_OK;
+	return 0;
 	}
 
 // Create tags, assertions, and parameters from a child of a catenation node.
@@ -1074,7 +1071,7 @@ static int makeTAP(memhdr_t *mem, xstack_t *stack, ast_node_t *node, int **ptags
 	params_t *params;
 
 	// Make a first pass with matchEmpty() to get the number of tags and parameters.
-	if((status = matchEmpty(stack, node, NULL, NULL, NULL, &num_tags, &params_seen)) != REG_OK)
+	if((status = matchEmpty(stack, node, NULL, NULL, NULL, &num_tags, &params_seen)) != 0)
 		return status;
 
 	// Allocate arrays for the tags and parameters.
@@ -1090,7 +1087,7 @@ static int makeTAP(memhdr_t *mem, xstack_t *stack, ast_node_t *node, int **ptags
 		}
 
 	// Make a second pass with matchEmpty() to get the list of tags and parameters.
-	if((status = matchEmpty(stack, node, tags, passertions, params, NULL, NULL)) != REG_OK) {
+	if((status = matchEmpty(stack, node, tags, passertions, params, NULL, NULL)) != 0) {
 		free(tags);
 		return status;
 		}
@@ -1098,7 +1095,7 @@ static int makeTAP(memhdr_t *mem, xstack_t *stack, ast_node_t *node, int **ptags
 	// Return results.
 	*ptags = tags;
 	*pparams = params;
-	return REG_OK;
+	return 0;
  	}
 
 typedef enum {
@@ -1179,7 +1176,7 @@ static int computeNFL(memhdr_t *mem, xstack_t *stack, ast_node_t *tree) {
 						// Compute the attributes for the subtree, and after that for this node.
 						StackPush(stack, voidptr, node);
 						StackPush(stack, int, NFLPostIteration);
-						StackPush(stack, voidptr, ((ast_iter_t *) node->obj)->arg);
+						StackPush(stack, voidptr, ((ast_iter_t *) node->obj)->sub);
 						StackPush(stack, int, NFLRecurse);
 						break;
 					}
@@ -1204,9 +1201,9 @@ static int computeNFL(memhdr_t *mem, xstack_t *stack, ast_node_t *tree) {
 						return REG_ESPACE;
 					}
 				else {
-					node->nullable = iter->min == 0 || iter->arg->nullable;
-					node->firstpos = iter->arg->firstpos;
-					node->lastpos = iter->arg->lastpos;
+					node->nullable = iter->min == 0 || iter->sub->nullable;
+					node->firstpos = iter->sub->firstpos;
+					node->lastpos = iter->sub->lastpos;
 					}
 				}
 				break;
@@ -1222,7 +1219,7 @@ static int computeNFL(memhdr_t *mem, xstack_t *stack, ast_node_t *tree) {
 
 					// The left side matches the empty string.  Get tags, assertions, and parameters from
 					// the node and create a union.
-					if((status = makeTAP(mem, stack, cat->left, &tags, &assertions, &params)) != REG_OK)
+					if((status = makeTAP(mem, stack, cat->left, &tags, &assertions, &params)) != 0)
 						return status;
 					node->firstpos = makeUnion(mem, cat->right->firstpos, cat->left->firstpos, tags,
 					 assertions, params);
@@ -1238,7 +1235,7 @@ static int computeNFL(memhdr_t *mem, xstack_t *stack, ast_node_t *tree) {
 
 					// The right side matches the empty string.  Get tags, assertions, and parameters from
 					// the node and create a union.
-					if((status = makeTAP(mem, stack, cat->right, &tags, &assertions, &params)) != REG_OK)
+					if((status = makeTAP(mem, stack, cat->right, &tags, &assertions, &params)) != 0)
 						return status;
 					node->lastpos = makeUnion(mem, cat->left->lastpos, cat->right->lastpos, tags,
 					 assertions, params);
@@ -1256,10 +1253,11 @@ static int computeNFL(memhdr_t *mem, xstack_t *stack, ast_node_t *tree) {
 			}
 		}
 
-	return REG_OK;
+	return 0;
 	}
 
-#ifdef XRE_Debug
+#if XRE_Debug
+// Print list of tag IDs enclosed in brackets [ ] with given label.
 void printTags(char *label, int *tags, int count) {
 
 	if(tags != NULL) {
@@ -1274,6 +1272,7 @@ void printTags(char *label, int *tags, int count) {
 		}
 	}
 
+// Print codepoint ranges and tag IDs.
 void print_codes_and_tags(int code_min, int code_max, int *tags) {
 
 	fprintf(stderr, "%3d", code_min);
@@ -1329,8 +1328,8 @@ static int makeTrans(pos_and_tags_t *p1, pos_and_tags_t *p2, tnfa_transition_t *
 				(trans + 1)->state = NULL;
 #endif
 				// Use the character ranges, assertions, etc. from 'p1' for the transition from 'p1' to 'p2'.
-				trans->code_min = (xcint_t) p1->code_min;
-				trans->code_max = (xcint_t) p1->code_max;
+				trans->code_min = (xint_t) p1->code_min;
+				trans->code_max = (xint_t) p1->code_max;
 				trans->state = transitions + offs[p2->position];
 				trans->state_id = p2->position;
 				trans->assertions = p1->assertions | p2->assertions | (p1->class ? AssertCC : 0) |
@@ -1427,7 +1426,7 @@ static int makeTrans(pos_and_tags_t *p1, pos_and_tags_t *p2, tnfa_transition_t *
 						free(trans->params);
 					trans->params = NULL;
 					}
-#ifdef XRE_Debug
+#if XRE_Debug
 				fprintf(stderr, "  pos %2d -> %2d on char(s) ", p1->position, p2->position);
 				print_codes_and_tags(p1->code_min, p1->code_max, trans->tags);
 				if(trans->assertions)
@@ -1438,27 +1437,29 @@ static int makeTrans(pos_and_tags_t *p1, pos_and_tags_t *p2, tnfa_transition_t *
 					DPrintf((stderr, ", class %ld", (long) trans->u.class));
 				if(trans->neg_classes)
 					fprintf(stderr, ", neg_classes %p", trans->neg_classes);
+#if EnableApprox
 				if(trans->params) {
 					fputs(", ", stderr);
 					printParams(true, &trans->params->pa);
 					}
+#endif
 				fputc('\n', stderr);
 #endif
 				++p2;
 				}
 			++p1;
 			}
-		else
-			// Compute a maximum limit for the number of transitions leaving from each state.
-			while(p1->position >= 0) {
-				p2 = orig_p2;
-				while(p2->position >= 0) {
-					++counts[p1->position];
-					++p2;
-					}
-				++p1;
+	else
+		// Compute a maximum limit for the number of transitions leaving from each state.
+		while(p1->position >= 0) {
+			p2 = orig_p2;
+			while(p2->position >= 0) {
+				++counts[p1->position];
+				++p2;
 				}
-	return REG_OK;
+			++p1;
+			}
+	return 0;
 	}
 
 // Converts an abstract syntax tree to a TNFA.  All the transitions in the TNFA are labelled with one character range (there are
@@ -1467,7 +1468,7 @@ static int makeTNFA(ast_node_t *node, tnfa_transition_t *transitions, int *count
 	ast_union_t *uni;
 	ast_cat_t *cat;
 	ast_iter_t *iter;
-	int status = REG_OK;
+	int status = 0;
 
 	// XXX - recurse using a stack!
 	switch(node->type) {
@@ -1475,7 +1476,7 @@ static int makeTNFA(ast_node_t *node, tnfa_transition_t *transitions, int *count
 			break;
 		case AST_Union:
 			uni = (ast_union_t *) node->obj;
-			if((status = makeTNFA(uni->left, transitions, counts, offs)) != REG_OK)
+			if((status = makeTNFA(uni->left, transitions, counts, offs)) != 0)
 				return status;
 			status = makeTNFA(uni->right, transitions, counts, offs);
 			break;
@@ -1484,7 +1485,7 @@ static int makeTNFA(ast_node_t *node, tnfa_transition_t *transitions, int *count
 
 			// Add a transition from each position in cat->left->lastpos to each position in cat->right->firstpos.
 			if((status = makeTrans(cat->left->lastpos, cat->right->firstpos, transitions, counts, offs)) !=
-			 REG_OK || (status = makeTNFA(cat->left, transitions, counts, offs)) != REG_OK)
+			 0 || (status = makeTNFA(cat->left, transitions, counts, offs)) != 0)
 				return status;
 			status = makeTNFA(cat->right, transitions, counts, offs);
 			break;
@@ -1495,21 +1496,20 @@ static int makeTNFA(ast_node_t *node, tnfa_transition_t *transitions, int *count
 				assert(iter->min == 0 || iter->min == 1);
 
 				// Add a transition from each last position in the iterated expression to each first position.
-				if((status = makeTrans(iter->arg->lastpos, iter->arg->firstpos, transitions, counts,
-				 offs)) != REG_OK)
+				if((status = makeTrans(iter->sub->lastpos, iter->sub->firstpos, transitions, counts,
+				 offs)) != 0)
 					return status;
 				}
-			status = makeTNFA(iter->arg, transitions, counts, offs);
+			status = makeTNFA(iter->sub, transitions, counts, offs);
 			break;
 		}
 	return status;
 	}
 
-#ifdef XRE_Debug
+#if XRE_Debug
 static void printTrans(tnfa_transition_t *trans) {
 
-	fprintf(stderr, "    %p: state_id %2d, dest state %p for ",
-	 (void *) trans, trans->state_id, (void *) trans->state);
+	fprintf(stderr, "    %p: state_id %2d, dest state %p for ", (void *) trans, trans->state_id, (void *) trans->state);
 	print_codes_and_tags(trans->code_min, trans->code_max, trans->tags);
 	fputc('\n', stderr);
 	}
@@ -1538,19 +1538,60 @@ static void printTNFA(const tnfa_t *tnfa) {
 	}
 #endif
 
+// Scan tree and return true if any regular expression indicator found in a node, so that PropHaveRegical flag can be set.
+static bool scanAST(ast_node_t *ast, int cflags) {
+
+	if(ast->submatch_id > 0)
+		return true;
+	switch(ast->type) {
+		case AST_Lit:
+			{ast_lit_t *lit = ast->obj;
+			if(lit->code_min < 0 || lit->code_min != lit->code_max)
+				return true;
+			}
+			break;
+		case AST_Cat:
+			if(scanAST(((ast_cat_t *) ast->obj)->left, cflags) ||
+			 scanAST(((ast_cat_t *) ast->obj)->right, cflags))
+				return true;
+			break;
+		case AST_Union:
+			if(!(cflags & REG_ICASE))
+				return true;
+			else {
+				ast_lit_t *lit1, *lit2;
+				ast_union_t *u = ast->obj;
+				if(u->left->type != AST_Lit || u->left->submatch_id > 0 ||
+				 u->right->type != AST_Lit || u->right->submatch_id > 0)
+					return true;
+				lit1 = u->left->obj;
+				lit2 = u->right->obj;
+				if(!xisupper(lit1->code_min) || lit1->code_max != lit1->code_min ||
+				 lit2->code_min != xtolower(lit1->code_min) || lit2->code_max != lit2->code_min)
+					return true;
+				}
+			break;
+		default:
+			return true;
+		}
+	return false;
+	}
+
 #define ErrorExit(code)\
 	{\
 	status = code;\
 	goto ErrExit;\
 	}
 
-int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
+// Convert regular expression pattern to an abstract syntax tree (AST), reverse tree if REG_REVERSE flag specified, set up tags,
+// optimize tree, then convert AST to a TNFA (an array of transitions).
+int compilePat(regex_t *preg, const xchar_t *pat, size_t len, int cflags) {
 	xstack_t *stack;
 	ast_node_t *tree, *tmp_ast_l, *tmp_ast_r;
 	pos_and_tags_t *p;
 	int *counts = NULL;
 	int *offs = NULL;				// Array of transition offsets for given positions.
-	int i, add = 0;
+	int i, tran_count;
 	tnfa_transition_t *transitions, *initial;
 	tnfa_t *tnfa = NULL;
 	tag_direction_t *tag_directions = NULL;
@@ -1558,6 +1599,9 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	memhdr_t *mem;
 	parse_ctx_t parse_ctx;
 
+#if XRE_Debug
+	(void) setlinebuf(stderr);
+#endif
 	// Allocate a stack which is used throughout the compilation process for various purposes.
 	if((stack = xstack_new(512, 10240, 128)) == NULL)
 		return REG_ESPACE;
@@ -1568,53 +1612,71 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 		return REG_ESPACE;
 		}
 
-	preg->re_cpat = NULL;
+	preg->cflags = cflags;
+	preg->pflags = 0;
+	preg->re_data = NULL;
 
 	// Clear parse context object and initialize non-zero values.
 	memset(&parse_ctx, 0, sizeof(parse_ctx));
 	parse_ctx.mem = mem;
 	parse_ctx.stack = stack;
 	parse_ctx.re = pat;
-	parse_ctx.len = n;
+	parse_ctx.len = len;
 	parse_ctx.keepfirst = true;
 	parse_ctx.cflags = cflags;
 	parse_ctx.cur_max = XRE_MB_CUR_MAX;
 
 	// Parse the RE string pattern.
-	DPrintf((stderr, "=====\ncompile_pat: parsing '%.*" StrF "'\n", (int) n, pat));
-	if((status = parsePat(&parse_ctx)) != REG_OK)
+	DPrintf((stderr, "=====\ncompilePat: parsing '%.*" StrF "'\n", (int) len, pat));
+	if((status = parsePat(&parse_ctx)) != 0)
 		goto ErrExit;
 
-	// Back references and approximate matching cannot currently be used in the same regexp.
-	if(parse_ctx.max_backref > 0 && parse_ctx.pflags & PropHaveApprox)
-		ErrorExit(REG_BADPAT);
+	// Back references and approximate matching or pattern reversal cannot currently be used in the same regexp.
+	if(parse_ctx.max_backref > 0) {
+		if(parse_ctx.pflags & PropHaveApprox)
+			ErrorExit(REG_BADPAT);
+		if(cflags & REG_REVERSE)
+			ErrorExit(REG_EREGREV);
+		}
 
 	preg->re_nsub = parse_ctx.submatch_id - 1;
-	tree = parse_ctx.result;
-#ifdef XRE_Debug
+	tree = parse_ctx.rootnode;
+#if XRE_Debug
 	printAST(tree, "post-parse");
 #endif
 	// Referring to non-existent subexpressions is an error.
 	if(parse_ctx.max_backref > (int) preg->re_nsub)
 		ErrorExit(REG_ESUBREG);
 
-	// Parsing succeeded.  Allocate the TNFA structure and initialize it.
+	// Parsing succeeded.  Allocate the TNFA structure and initialize it.  Scan tree and set PropHaveRegical property flag
+	// if applicable.
 	if((tnfa = calloc(1, sizeof(tnfa_t))) == NULL)
 		ErrorExit(REG_ESPACE);
-	preg->re_cpat = (tnfa_t *) tnfa;
+	preg->re_data = (void *) tnfa;
 	tnfa->num_submatches = parse_ctx.submatch_id;
 	tnfa->cflags = cflags;
-	tnfa->pflags = parse_ctx.pflags;
+	preg->pflags = !(parse_ctx.pflags & PropHaveRegical) && scanAST(tree, cflags) ? parse_ctx.pflags | PropHaveRegical :
+	 parse_ctx.pflags;
 	if(parse_ctx.max_backref > 0)
-		tnfa->pflags |= PropHaveBackrefs;
+		preg->pflags |= PropHaveBackref;
 
+#if EnableReverse
+	// Reverse tree if REG_REVERSE specified.
+	if(cflags & REG_REVERSE) {
+		DPrintf((stderr, "=====\ncompilePat: reversing tree\n"));
+		revAST(tree);
+#if XRE_Debug
+		printAST(tree, "post-reverse");
+#endif
+		}
+#endif
 	// Set up tags for submatch addressing.  If REG_NOSUB is set and the RE does not have back references,
 	// this can be skipped.
-	if(!(cflags & REG_NOSUB) || tnfa->pflags & PropHaveBackrefs) {
-		DPrintf((stderr, "=====\ncompile_pat: setting up tags\n"));
+	if(!(cflags & REG_NOSUB) || preg->pflags & PropHaveBackref) {
+		DPrintf((stderr, "=====\ncompilePat: setting up tags\n"));
 
 		// Figure out how many tags we will need -- addTags(), first pass.
-		if((status = addTags(NULL, stack, tree, tnfa)) != REG_OK)
+		if((status = addTags(NULL, stack, tree, tnfa)) != 0)
 			goto ErrExit;
 
 		// Allocate tag arrays.
@@ -1629,9 +1691,9 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 			ErrorExit(REG_ESPACE);
 
 		// Create tag nodes in AST -- addTags(), second pass.
-		if((status = addTags(mem, stack, tree, tnfa)) != REG_OK)
+		if((status = addTags(mem, stack, tree, tnfa)) != 0)
 			goto ErrExit;
-#ifdef XRE_Debug
+#if XRE_Debug
 		for(i = 0; i < parse_ctx.submatch_id; ++i)
 			fprintf(stderr, "pmatch[%d] = {t%d, t%d}\n", i,
 			 tnfa->submatch_data[i].so_tag, tnfa->submatch_data[i].eo_tag);
@@ -1642,7 +1704,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 		}
 
 	// Expand iteration nodes.
-	if((status = expandAST(mem, stack, tree, &parse_ctx.position, tag_directions, &tnfa->params_depth)) != REG_OK)
+	if((status = expandAST(mem, stack, tree, &parse_ctx.position, tag_directions, &tnfa->params_depth)) != 0)
 		goto ErrExit;
 
 	// Add a dummy node for the final state.
@@ -1656,7 +1718,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	DPrintf((stderr, "Number of states: %d\n", parse_ctx.position));
 
 	// Prepare to convert AST tree to TNFA.
-	if((status = computeNFL(mem, stack, tree)) != REG_OK)
+	if((status = computeNFL(mem, stack, tree)) != 0)
 		goto ErrExit;
 	if((counts = malloc(sizeof(*counts) * parse_ctx.position)) == NULL ||
 	 (offs = malloc(sizeof(*offs) * parse_ctx.position)) == NULL)
@@ -1665,27 +1727,27 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 
 	// Compute number of transitions needed and allocate array.
 	(void) makeTNFA(tree, NULL, counts, NULL);
-	add = 0;
+	tran_count = 0;
 	for(i = 0; i < parse_ctx.position; ++i) {
-		offs[i] = add;
-		add += counts[i] + 1;
+		offs[i] = tran_count;
+		tran_count += counts[i] + 1;
 		counts[i] = 0;
 		}
-	if((transitions = calloc((unsigned) add + 1, sizeof(*transitions))) == NULL)
+	if((transitions = calloc((unsigned) tran_count + 1, sizeof(*transitions))) == NULL)
 		ErrorExit(REG_ESPACE);
 	tnfa->transitions = transitions;
-	tnfa->num_transitions = add;
+	tnfa->num_transitions = tran_count;
 
 	// Ready... convert tree.
 	DPrintf((stderr, "=====\nConverting to TNFA:\n"));
-	if((status = makeTNFA(tree, transitions, counts, offs)) != REG_OK)
+	if((status = makeTNFA(tree, transitions, counts, offs)) != 0)
 		goto ErrExit;
 
 	// If in 8-bit mode, compute a table of characters that can be the first character of a match.
 	tnfa->first_char = -1;
 	if(XRE_MB_CUR_MAX == 1 && !tmp_ast_l->nullable) {
 		int count = 0;
-		xcint_t k, lastk;
+		xint_t k, lastk;
 		DPrintf((stderr, "Characters that can start a match:"));
 		if((tnfa->firstpos_chars = calloc(256, sizeof(char))) == NULL)
 			ErrorExit(REG_ESPACE);
@@ -1699,7 +1761,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 				++t;
 				}
 			}
-#ifdef XRE_Debug
+#if XRE_Debug
 		char *s, *sz;
 		sz = (s = tnfa->firstpos_chars) + 256;
 		do {
@@ -1723,25 +1785,20 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	i = 0;
 	while(p->position >= 0) {
 		++i;
-#ifdef XRE_Debug
+#if XRE_Debug
 		int *tags;
-		fprintf(stderr, "initial: %d", p->position);
+		fprintf(stderr, "initial: %d/", p->position);
 		tags = p->tags;
-		if(tags != NULL) {
-			if(*tags >= 0)
-				fprintf(stderr, "/");
-			while(*tags >= 0) {
-				fprintf(stderr, "%d", *tags);
-				++tags;
-				if(*tags >= 0)
-					fprintf(stderr, ", ");
-				}
-			}
-		fprintf(stderr, ", assert %d", p->assertions);
+		if(tags != NULL)
+			while(*tags >= 0)
+				fprintf(stderr, "%d, ", *tags++);
+		fprintf(stderr, "assert %.4x", p->assertions);
+#if EnableApprox
 		if(p->params) {
 			fputs(", ", stderr);
 			printParams(true, &p->params->pa);
 			}
+#endif
 		fputc('\n', stderr);
 #endif
 		++p;
@@ -1777,11 +1834,10 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 		}
 	initial[i].state = NULL;
 
-	tnfa->num_transitions = add;
 	tnfa->final = transitions + offs[tree->lastpos[0].position];
 	tnfa->num_states = parse_ctx.position;
 
-#ifdef XRE_Debug
+#if XRE_Debug
 	fprintf(stderr, "final state %p\n", (void *) tnfa->final);
 	printTNFA(tnfa);
 #endif
@@ -1789,7 +1845,7 @@ int compilePat(regex_t *preg, const xchar_t *pat, size_t n, int cflags) {
 	xstack_free(stack);
 	free(counts);
 	free(offs);
-	return REG_OK;
+	return 0;
 ErrExit:
 	// Free everything that was allocated and return the error code.
 	mem_free(mem);
@@ -1808,7 +1864,7 @@ void refree(regex_t *preg) {
 	unsigned int i;
 	tnfa_transition_t *trans;
 
-	if((tnfa = (tnfa_t *) preg->re_cpat) == NULL)
+	if((tnfa = (tnfa_t *) preg->re_data) == NULL)
 		return;
 
 	for(i = 0; i < tnfa->num_transitions; ++i)

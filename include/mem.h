@@ -1,6 +1,6 @@
 // mem.h - XRE memory allocator.
 //
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -42,20 +42,26 @@ extern void *memAlloc(memhdr_t *mem, size_t size, bool zero);
 // Free the memory allocator and all memory allocated with it.
 extern void mem_free(memhdr_t *mem);
 
-// Stack definitions.
-
-typedef struct xstack_rec xstack_t;
+// Stack-related definitions.
+typedef struct {
+	int size;
+	int max_size;
+	int increment;
+	int idx;
+	union xstack_item {
+		void *ptr;
+		int i;
+		} *stack;
+	} xstack_t;
 
 // Macros which save some typing.
-#define StackPush(s, typetag, value) {\
-	if((status = xstack_push_ ## typetag(s, value)) != REG_OK)\
-		return status;\
-		}
+#define StackPush(s, typetag, value) \
+	if((status = xstack_push_ ## typetag(s, value)) != 0)\
+		return status
 
-#define StackPushR(s, typetag, value) {\
-	if((status = xstack_push_ ## typetag(s, value)) != REG_OK)\
-		goto Retn;\
-		}
+#define StackPushR(s, typetag, value) \
+	if((status = xstack_push_ ## typetag(s, value)) != 0)\
+		goto Retn
 
 extern xstack_t *xstack_new(int size, int max_size, int increment);
 extern void xstack_free(xstack_t *s);

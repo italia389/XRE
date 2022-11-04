@@ -89,18 +89,7 @@ Fail:
 	return NULL;
 	}
 
-// Stack management routines.
-
-struct xstack_rec {
-	int size;
-	int max_size;
-	int increment;
-	int idx;
-	union xstack_item {
-		void *ptr;
-		int i;
-		} *stack;
-	};
+/*** Stack management routines ***/
 
 // Create a new stack object.  'size' is initial size in bytes, 'max_size' is maximum size, and 'increment' specifies how much
 // more space will be allocated with realloc() if all space gets used up.  Return the stack object, or NULL if out of memory.
@@ -160,7 +149,7 @@ static int xstack_push(xstack_t *s, union xstack_item value) {
 		s->stack = newBuffer;
 		xstack_push(s, value);
 		}
-	return REG_OK;
+	return 0;
 	}
 
 // Push a void pointer onto given stack and return status.

@@ -1,31 +1,33 @@
-// (c) Copyright 2020 Richard W. Marinelli
+// (c) Copyright 2022 Richard W. Marinelli
 //
 // This work is licensed under the GNU General Public License (GPLv3).  To view a copy of this license, see the
 // "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
 //
 // Program to demonstrate how the XRE library works.
 
+#include "stdos.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 #include <locale.h>
+#include <wchar.h>
 #include "tutil.h"
 
 // Types and functions needed for xreguexec().
 typedef struct {
 	char *str;
-	size_t pos, len;
+	regoff_t pos, len;
 	bool multibyte;
 	} ScanInfo;
 
 #if 0
 // Comparison function that ignores case.  Return zero if a match; otherwise, non-zero.
-static int casecmp(const void *s1, const void *s2, size_t n) {
+static int casecmp(const void *s1, const void *s2, regoff_t len) {
 	const char *str1 = s1;
 	const char *str2 = s2;
 
-	while(n-- > 0)
+	while(len-- > 0)
 		if(tolower(*str1++) != tolower(*str2++))
 			return 1;
 	return 0;
@@ -34,12 +36,12 @@ static int casecmp(const void *s1, const void *s2, size_t n) {
 
 // Get next input character -- callback routine for xreguexec().  Set *pc to the value of the next character in string, and set
 // *plen to number of bytes advanced.  Return true if end of string reached; otherwise, false.
-static bool cNextChar(xcint_t *pc, int *plen, void *context) {
+static bool cNextChar(xint_t *pc, unsigned int *plen, void *context) {
 	ScanInfo *pscan = (ScanInfo *) context;
 	char *strpos;
 
 	if(pscan->pos == pscan->len) {
-		*pc = (xcint_t) -1;
+		*pc = (xint_t) -1;
 		return true;
 		}
 	strpos = pscan->str + pscan->pos;
@@ -58,7 +60,7 @@ static bool cNextChar(xcint_t *pc, int *plen, void *context) {
 		}
 	else {
 RawChar:
-		*pc = (xcint_t) *strpos;
+		*pc = (xint_t) *strpos;
 		*plen = 1;
 		++pscan->pos;
 		}
@@ -66,20 +68,70 @@ RawChar:
 	}
 
 // Rewind input -- callback routine for xreguexec().  Reset the current position in the input string.
-static void cRewind(size_t pos, void *context) {
+static void cRewind(regoff_t pos, void *context) {
 	ScanInfo *pscan = (ScanInfo *) context;
 	pscan->pos = pos;
 	}
 
 // Compare strings -- callback routine for xreguexec().  Compare two substrings in the input and return 0 if the substrings
 // are equal, or a nonzero value if not.
-static int cCompare(size_t pos1, size_t pos2, size_t len, void *context) {
+static int cCompare(regoff_t pos1, regoff_t pos2, size_t len, void *context) {
 	ScanInfo *pscan = (ScanInfo *) context;
 	return memcmp(pscan->str + pos1, pscan->str + pos2, len);
 	}
 
-// Convert any "\n", "\t", or "\0" in string to a newline, tab, or null and return new length.  If nullOnly is true, convert
-// "\0" only.
+// Reverse a byte string in place and return it.
+static void *bsrev(void *str, size_t len) {
+
+	if(len > 1) {
+		short c;
+		char *str1 = (char *) str;
+		char *strEnd = str1 + len;
+		do {
+			c = *str1;
+			*str1++ = *--strEnd;
+			*strEnd = c;
+			} while(strEnd > str1 + 1);
+		}
+	return str;
+	}
+
+// Reverse a multibyte string in place.  Return NULL if successful, otherwise error message.
+static char *mrev(char *str, size_t len) {
+
+	if(len > 1) {
+		mbstate_t mbstate;
+		size_t n;
+		char *strEnd, *str1;
+
+		// First, find and reverse any multibyte sequences within the string.
+		strEnd = (str1 = str) + len;
+		memset(&mbstate, '\0', sizeof(mbstate));
+		do {
+			if((*str1 & 0x80) == 0)
+				goto Incr;
+			if((n = mbrlen(str1, strEnd - str1, &mbstate)) == (size_t) -1 || n == (size_t) -2) {
+				(void) asprintf(&strEnd, "Invalid multibyte character in string (at offset %lu)", str1 - str);
+				return strEnd;
+				}
+			else if(n == 0)
+Incr:
+				++str1;
+			else {
+				bsrev(str1, n);
+				str1 += n;
+				}
+			} while(str1 < strEnd);
+
+		// Now reverse the whole string.
+		bsrev(str, len);
+		}
+
+	return NULL;
+	}
+
+// Convert any "\n", "\t", or "\0" in string to a newline, tab, or null in place and return new length.  If nullOnly is true,
+// convert "\0" only.
 static size_t strconv(char *str, bool nullOnly) {
 	char *s1, *s2;
 
@@ -98,7 +150,7 @@ static size_t strconv(char *str, bool nullOnly) {
 
 // Parse command-line arguments and process them.  Write results to standard output.
 int main(int argc, char *argv[]) {
-	const char *Version = "1.1.0";
+	const char *Version = "1.2.0";
 	int status, cflags = 0, eflags = 0;
 	char *Myself, *execName;
 	char *pat, *str1, *str2, *locale = NULL;
@@ -148,6 +200,9 @@ int main(int argc, char *argv[]) {
 				case 'n':
 					nFuncs = true;
 					break;
+				case 'R':
+					cflags |= REG_REVERSE;
+					break;
 				case 'U':
 					cflags |= REG_UNGREEDY;
 					break;
@@ -184,6 +239,7 @@ Usage:
 		 "    -l  Set native locale.\n"
 		 "    -N  Set REG_NEWLINE compilation flag.\n"
 		 "    -n  Use \"n\" function variants for compilation and execution.\n"
+		 "    -R  Set REG_REVERSE compilation flag and scan str argument backward during execution.\n"
 		 "    -U  Set REG_UNGREEDY compilation flag.\n"
 		 "    -u  Use \"u\" function variants for execution.\n"
 		 "    -X  Force REG_EXACT xregainit() flag for all patterns.\n"
@@ -227,6 +283,26 @@ Usage:
 	if(slen > 0)
 		fvizstr(str1, slen, stdout, true);
 	printf("' (%lu)\n", slen);
+#if 0
+fputs("Forward string: '", stdout);
+fvizstr(str1, slen, stdout, false);
+fputs("'\n", stdout);
+#endif
+
+	// Reverse string if REG_REVERSE flag specified.
+	if(cflags & REG_REVERSE) {
+		if(!context.multibyte)
+			bsrev(str1, slen);
+		else if((str2 = mrev(str1, slen)) != NULL) {
+			fprintf(stderr, "Error: %s\n", str2);
+			exit(1);
+			}
+#if 0
+fputs("Reversed string: '", stdout);
+fvizstr(str1, slen, stdout, false);
+fputs("'\n", stdout);
+#endif
+		}
 
 	// Loop through the patterns.
 	do {
@@ -248,11 +324,12 @@ Usage:
 				}
 
 			// Match the pattern.
-			status = xreginfo(&re);
-			printf(", re_nsub: %lu, hasBackrefs: %s, hasApprox: %s\n    Execution: ", re.re_nsub,
-			 trueFalse(status & PatBackrefs), trueFalse(status & PatApprox));
+			printf(", re_nsub: %lu, regical: %s, escLitChar: %s, backref: %s, approx: %s\n    Execution: ",
+			 re.re_nsub, trueFalse(re.pflags & PropHaveRegical), trueFalse(re.pflags & PropHaveEscLit),
+			 trueFalse(re.pflags & PropHaveBackref), trueFalse(re.pflags & PropHaveApprox));
+
 			if(aFuncs) {
-				int iflags = regExact || (status & PatApprox) ? REG_EXACT : REG_MODERATE;
+				int iflags = regExact || (re.pflags & PropHaveApprox) ? REG_EXACT : REG_MODERATE;
 				printf("xregainit(..., %d), ", iflags);
 				if(!regExact)
 					xregainit(&aparams, iflags);
@@ -295,14 +372,17 @@ Usage:
 				}
 			else {
 				// Success.
-				size_t mlen;
+				regoff_t mlen;
 				fputs("Success\n", stdout);
 				match = groups;
 				for(grp = 0; grp <= re.re_nsub; ++grp) {
 					printf("\tGroup %lu: '", grp);
 					if((mlen = match->rm_eo - match->rm_so) > 0)
 						fvizstr(str1 + match->rm_so, mlen, stdout, true);
-					printf("' (%d-%d)\n", match->rm_so, match->rm_eo);
+					if(match->rm_so == -1)
+						fputs("' (-1)\n", stdout);
+					else
+						printf("' (%ld-%ld)\n", (long) match->rm_so, (long) match->rm_eo);
 					++match;
 					}
 				if(aFuncs)

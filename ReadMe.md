@@ -19,10 +19,10 @@ Installation
 Installation is very straightforward.  Change to the root of the source directory and do one of the following:
 
     On Linux:
-        $ sudo ./xre-1.1.0.sh
+        $ sudo ./xre-1.2.0.sh
 
     On macOS:
-        $ open xre-1.1.0.pkg
+        $ open xre-1.2.0.pkg
 
 This will install two versions of the XRE (static) library, C headers, and man pages into `/usr/local`.  One of the installed
 libraries supports wide characters and multibyte characters (which is the default) and the other supports 8-bit characters only.
@@ -41,13 +41,12 @@ Backward Matching
 XRE provides support for matching an RE while scanning backward through a string or user data structures.
 This is accomplished by performing the following steps in your program:
 
-1. Reverse the RE string pattern with `xregrev()`.
-2. Compile the reversed pattern with the REG_REVERSED flag.
-3. Optionally specify flag(s) at execution time which control how line and word boundaries are matched.
-4. Provide a reversed string to `xregexec()`, or provide elements of a collection in reversed order to the callback function
+1. Compile the pattern with the REG_REVERSE flag.
+2. Optionally specify flag(s) at execution time which control how line and word boundaries are matched.
+3. Provide a reversed string to `xregexec()`, or provide elements of a collection in reversed order to the callback function
    associated with `xreguexec()`.
 
-The only limitation to this feature is that the RE pattern cannot contain back references or stand-alone options.
+The only limitation to this feature is that the RE pattern cannot contain back references.
 
 Approximate Matching
 --------------------
@@ -118,7 +117,7 @@ Questions and feature requests are welcomed as well.  You may also report a bug 
 
 Notes
 =====
-This distribution of the XRE library is version 1.1.0.  Installer packages containing 64-bit binaries are included for Linux
+This distribution of the XRE library is version 1.2.0.  Installer packages containing 64-bit binaries are included for Linux
 platforms and macOS ver. 10.12 and later.  The sources can be compiled instead if desired; however, the build process has not
 been tested on other Unix platforms and there may be some (hopefully minor) issues which will need to be resolved.  If you are
 compiling the sources and encounter any problems, please contact the author with the details.
