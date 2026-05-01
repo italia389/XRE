@@ -1,4 +1,4 @@
-# Makefile for XRE library.	Ver. 1.2.0
+# Makefile for XRE library.		Ver. 1.3.0
 
 # Definitions.
 MAKEFLAGS = --no-print-directory
@@ -17,7 +17,7 @@ OldManGlob = man3/{xre_{approx,core,info,reverse},xreg{info,{,n,w,wn}rev}}.3
 SrcManDir = man
 SrcTestDir = test
 TestFiles = Makefile include/tutil.h src/tutil.c src/txre.c
-SrcTestInstructions = doc/UserInstall.txt
+SrcTestInstructions = UserInstall.txt
 DestTestDir = xre_test
 DestTestInstructions = Install.txt
 
@@ -104,7 +104,7 @@ uninstall:
 		done;\
 		for f in "$$destDir"/include/$(HdrFileGlob) "$$destDir"/$(ManDir)/$(OldManGlob); do \
 			if [ -e "$$f" ] || [ -L "$$f" ]; then \
-				rm -rf "$$f" && echo "Deleted '$$f'" 1>&2;\
+				rm -f "$$f" && echo "Deleted '$$f'" 1>&2;\
 			fi;\
 		done;\
 		cd $(SrcManDir) || exit $$?;\
@@ -181,7 +181,7 @@ user-install:
 	cd $(SrcTestDir) || exit $$?;\
 	for f in $(TestFiles); do \
 		d=`dirname $$f`;\
-		if [ -n "$$dirname" ]; then \
+		if [ -n "$$d" ] && [ "$$d" != . ]; then \
 			[ -d ~/$(DestTestDir)/$$d ] || install -v -d ~/$(DestTestDir)/$$d 1>&2;\
 		else \
 			d=.;\

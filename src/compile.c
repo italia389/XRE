@@ -1,6 +1,6 @@
 // compile.c - XRE regexp compiler.
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -22,24 +22,15 @@ extern "C" {
 
 // Algorithms to set up tags so that submatch addressing can be done.
 
-typedef enum {
-	ATRecurse,
-	ATAfterIteration,
-	ATAfterUnionLeft,
-	ATAfterUnionRight,
-	ATAfterCatLeft,
-	ATAfterCatRight,
-	ATSetSubmatchEnd
-	} addtags_symbol_t;
+typedef enum {ATRecurse, ATAfterIteration, ATAfterUnionLeft, ATAfterUnionRight, ATAfterCatLeft, ATAfterCatRight,
+ ATSetSubmatchEnd} addtags_symbol_t;
 
 typedef struct {
 	int tag;
 	int next_tag;
 	} tag_states_t;
 
-typedef enum {
-	leftfork, rightfork
-	} fork_t;
+typedef enum {leftfork, rightfork} fork_t;
 
 // Insert a concatenation node into the root of the tree given by 'node'.  A new tag with number 'tag_id' is added as the left
 // or right child, and the old left or right child becomes the old root.
@@ -150,7 +141,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 		return REG_ESPACE;
 		}
 	else {
-		unsigned int i;
+		uint i;
 		for(i = 0; i <= tnfa->num_submatches; ++i)
 			saved_states[i].tag = -1;
 		}
@@ -399,7 +390,7 @@ static int addTags(memhdr_t *mem, xstack_t *stack, ast_node_t *tree, tnfa_t *tnf
 					}
 				break; // End case: ATRecurse.
 			case ATAfterIteration:
-				{int minimal = 0;
+				{bool minimal = false;
 				int enter_tag;
 
 				node = xstack_pop_voidptr(stack);
@@ -514,16 +505,13 @@ Retn:
 
 // AST to TNFA compilation routines.
 
-typedef enum {
-	CopyRecurse,
-	CopySetResultPtr
-	} copyast_symbol_t;
+typedef enum {CopyRecurse, CopySetResultPtr} copyast_symbol_t;
 
 // Flags for copyAST().
 #define CopyRemoveTags		1
 #define CopyMaximizeFirstTag	2
 
-static int copyAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int flags, int *pos_add, tag_direction_t *tag_directions,
+static int copyAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, uint flags, int *pos_add, tag_direction_t *tag_directions,
  ast_node_t **copy, int *max_pos) {
 	int status;
 	int bottom = xstack_num_objects(stack);
@@ -633,10 +621,7 @@ static int copyAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int flags, i
 	return 0;
 	}
 
-typedef enum {
-	ExpandRecurse,
-	ExpandAfterIter
-	} expand_ast_symbol_t;
+typedef enum {ExpandRecurse, ExpandAfterIter} expand_ast_symbol_t;
 
 // Expands each iteration node that has a finite, non-zero minimum or maximum iteration count to a catenated sequence of copies
 // of the node.
@@ -722,7 +707,8 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 				if(iter->min > 1 || iter->max > 1) {
 					ast_node_t *copy;
 					ast_node_t *seq1 = NULL, *seq2 = NULL;
-					int j, flags;
+					int j;
+					uint flags;
 					int pos_add_save = pos_add;
 
 					// Create a catenated sequence of copies of the node.
@@ -730,7 +716,7 @@ static int expandAST(memhdr_t *mem, xstack_t *stack, ast_node_t *ast, int *posit
 
 						// Remove tags from all but the last copy.
 						flags = ((j + 1 < iter->min) ? CopyRemoveTags : CopyMaximizeFirstTag);
-						DPrintf((stderr, "  iter copy %d, pos_add %d, flags %d\n", j, pos_add, flags));
+						DPrintf((stderr, "  iter copy %d, pos_add %d, flags %u\n", j, pos_add, flags));
 						pos_add_save = pos_add;
 						if((status = copyAST(mem, stack, iter->sub, flags, &pos_add, tag_directions,
 						 &copy, &max_pos)) != 0)
@@ -967,9 +953,9 @@ static pos_and_tags_t *makeUnion(memhdr_t *mem, pos_and_tags_t *set1, pos_and_ta
 	}
 
 // Finds the empty path through 'node' (which is the one that should be taken according to POSIX rules) and adds the tags on
-// that path to 'tags'. 'tags' may be NULL.  If 'num_tags_seen' is not NULL, it is set to the number of tags seen on the path.
-static int matchEmpty(xstack_t *stack, ast_node_t *node, int *tags, int *assertions, params_t *params, int *num_tags_seen,
- bool *params_seen) {
+// that path to 'tags'.  'tags' may be NULL.  If 'num_tags_seen' is not NULL, it is set to the number of tags seen on the path.
+static int matchEmpty(xstack_t *stack, ast_node_t *node, int *ptags, int *passertions, params_t *params, int *pnum_tags_seen,
+ bool *pparams_seen) {
 	ast_lit_t *lit;
 	ast_union_t *uni;
 	ast_cat_t *cat;
@@ -977,10 +963,10 @@ static int matchEmpty(xstack_t *stack, ast_node_t *node, int *tags, int *asserti
 	int i, status;
 	int bottom = xstack_num_objects(stack);
 
-	if(num_tags_seen != NULL)
-		*num_tags_seen = 0;
-	if(params_seen != NULL)
-		*params_seen = false;
+	if(pnum_tags_seen != NULL)
+		*pnum_tags_seen = 0;
+	if(pparams_seen != NULL)
+		*pparams_seen = false;
 
 	if((status = xstack_push_voidptr(stack, node)) != 0)
 		return status;
@@ -994,31 +980,31 @@ static int matchEmpty(xstack_t *stack, ast_node_t *node, int *tags, int *asserti
 				switch(lit->code_min) {
 					case LitTag:
 						if(lit->code_max >= 0) {
-							if(tags != NULL) {
+							if(ptags != NULL) {
 
 								// Add the tag to 'tags'.
-								for(i = 0; tags[i] >= 0; ++i)
-									if(tags[i] == lit->code_max)
+								for(i = 0; ptags[i] >= 0; ++i)
+									if(ptags[i] == lit->code_max)
 										break;
-								if(tags[i] < 0) {
-									tags[i] = lit->code_max;
-									tags[i + 1] = -1;
+								if(ptags[i] < 0) {
+									ptags[i] = lit->code_max;
+									ptags[i + 1] = -1;
 									}
 								}
-							if(num_tags_seen != NULL)
-								++(*num_tags_seen);
+							if(pnum_tags_seen != NULL)
+								++(*pnum_tags_seen);
 							}
 						break;
 					case LitAssert:
 						assert(lit->code_max >= 1 || lit->code_max <= AssertLast);
-						if(assertions != NULL)
-							*assertions |= lit->code_max;
+						if(passertions != NULL)
+							*passertions |= lit->code_max;
 						break;
 					case LitParam:
 						if(params != NULL)
 							*params = *lit->u.params;
-						if(params_seen != NULL)
-							*params_seen = true;
+						if(pparams_seen != NULL)
+							*pparams_seen = true;
 						break;
 					case LitEmpty:
 						break;
@@ -1098,12 +1084,7 @@ static int makeTAP(memhdr_t *mem, xstack_t *stack, ast_node_t *node, int **ptags
 	return 0;
  	}
 
-typedef enum {
-	NFLRecurse,
-	NFLPostUnion,
-	NFLPostCatenation,
-	NFLPostIteration
-	} nfl_stack_symbol_t;
+typedef enum {NFLRecurse, NFLPostUnion, NFLPostCatenation, NFLPostIteration} nfl_stack_symbol_t;
 
 // Computes and fills in the fields 'nullable', 'firstpos', and 'lastpos' in the nodes of the AST 'tree'.
 static int computeNFL(memhdr_t *mem, xstack_t *stack, ast_node_t *tree) {
@@ -1539,7 +1520,7 @@ static void printTNFA(const tnfa_t *tnfa) {
 #endif
 
 // Scan tree and return true if any regular expression indicator found in a node, so that PropHaveRegical flag can be set.
-static bool scanAST(ast_node_t *ast, int cflags) {
+static bool scanAST(ast_node_t *ast, uint cflags) {
 
 	if(ast->submatch_id > 0)
 		return true;
@@ -1585,7 +1566,7 @@ static bool scanAST(ast_node_t *ast, int cflags) {
 
 // Convert regular expression pattern to an abstract syntax tree (AST), reverse tree if REG_REVERSE flag specified, set up tags,
 // optimize tree, then convert AST to a TNFA (an array of transitions).
-int compilePat(regex_t *preg, const xchar_t *pat, size_t len, int cflags) {
+int compilePat(regex_t *preg, const xchar_t *pat, size_t len, uint cflags) {
 	xstack_t *stack;
 	ast_node_t *tree, *tmp_ast_l, *tmp_ast_r;
 	pos_and_tags_t *p;
@@ -1861,7 +1842,7 @@ ErrExit:
 
 void refree(regex_t *preg) {
 	tnfa_t *tnfa;
-	unsigned int i;
+	uint i;
 	tnfa_transition_t *trans;
 
 	if((tnfa = (tnfa_t *) preg->re_data) == NULL)

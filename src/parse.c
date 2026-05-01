@@ -1,6 +1,6 @@
 // parse.c - Regular expression parsing and abstract syntax tree (AST) routines.
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -49,7 +49,7 @@ ast_node_t *ast_newLit(memhdr_t *mem, int code_min, int code_max, int position) 
 	return node;
 	}
 
-ast_node_t *ast_newIter(memhdr_t *mem, ast_node_t *sub, int min, int max, int minimal) {
+ast_node_t *ast_newIter(memhdr_t *mem, ast_node_t *sub, int min, int max, bool minimal) {
 	ast_node_t *node;
 	ast_iter_t *iter;
 
@@ -228,7 +228,7 @@ static void printNode(ast_node_t *ast, int indent) {
 					fputs("empty literal\n", stderr);
 					break;
 				case LitAssert:
-					{unsigned i;
+					{uint i;
 					char *assertions[] = {"BOL", "EOL", "BOW", "EOW", "WB", "!WB", "CType", "!CType"};
 					if(lit->code_max >= (AssertLast << 1))
 						assert(0);
@@ -427,7 +427,7 @@ static bool expandShortcut(xchar_t *buf, const xchar_t *re, bool strip) {
 				fprintf(stderr, "'%s'\n", str);
 #endif
 			do {
-				*buf++ = (xchar_t) ((unsigned char) *str++);
+				*buf++ = (xchar_t) ((uchar) *str++);
 				} while(*str != '\0');
 			*buf = L'\0';
 			if(x < xtab + LitCharCount)
@@ -461,7 +461,7 @@ static int newItem(memhdr_t *mem, int min, int max, item_list_t *ilist) {
 	}
 
 // Expand a named character class to character ranges to improve performance for 8-bit character sets.
-static int expandCC(memhdr_t *mem, xctype_t class, item_list_t *ilist, int cflags) {
+static int expandCC(memhdr_t *mem, xctype_t class, item_list_t *ilist, uint cflags) {
 	int status;
 	xint_t c;
 	int j;
@@ -532,7 +532,7 @@ static int parseCC(parse_ctx_t *ctx, xctype_t *pclass) {
 
 // Parse and decode a hexadecimal value beginning at 'x' of \x, possibly enclosed in braces.  Set *pval to result if successful
 // and return 0; otherwise, return an error.
-static int hexchar(parse_ctx_t *ctx, long *pval) {
+static int hexNum(parse_ctx_t *ctx, long *pval, bool *pBraceForm) {
 	int maxDigits = 2;
 	bool foundLeftBrace = false, foundRightBrace = false;
 	char wkbuf[8 + 1], *str = wkbuf;
@@ -566,6 +566,8 @@ Done:
 		return REG_EBRACE;
 	*str = '\0';
 	*pval = strtol(wkbuf, NULL, 16);
+	if(pBraceForm != NULL)
+		*pBraceForm = foundLeftBrace;
 	return 0;
 	}
 
@@ -595,7 +597,7 @@ static int parseItem(parse_ctx_t *ctx, item_list_t *ilist, nclass_list_t *nclass
 			if(c == L'x') {
 				long val;
 
-				if((status = hexchar(ctx, &val)) != 0)
+				if((status = hexNum(ctx, &val, NULL)) != 0)
 					return status;
 				c = val;
 				haveHex = true;
@@ -977,16 +979,16 @@ static int parseBrace(parse_ctx_t *ctx, ast_node_t **pnode) {
 	int min, max, n;
 	const xchar_t *re = ctx->re;
 	const xchar_t *start;
-	int minimal = (ctx->cflags & REG_UNGREEDY) == REG_UNGREEDY;
+	bool minimal = (ctx->cflags & REG_UNGREEDY) == REG_UNGREEDY;
 #if EnableApprox
 	int *pitem;
 	int maxIns, maxDel, maxSubst, maxEdit;
 	int costIns, costDel, costSubst, maxCost;
-	unsigned short pass;
-	unsigned short costsSet = 0;
-	unsigned short costTotalSet = 0;
-	unsigned short editsSet = 0;
-	unsigned short editTotalSet = 0;
+	ushort pass;
+	ushort costsSet = 0;
+	ushort costTotalSet = 0;
+	ushort editsSet = 0;
+	ushort editTotalSet = 0;
 #endif
 #if XRE_Debug && EnableApprox
 	char *str;
@@ -1254,19 +1256,8 @@ ERetn:
 	return REG_BADBR;
 	}
 
-typedef enum {
-	ParseRE = 0,
-	ParseAtom,
-	ParseMarkForSubmatch,
-	ParseBranch,
-	ParsePiece,
-	ParseConcatenation,
-	ParsePostConcatenation,
-	ParseUnion,
-	ParsePostUnion,
-	ParsePostfix,
-	ParseRestoreCFlags
-	} parse_re_stack_symbol_t;
+typedef enum {ParseRE = 0, ParseAtom, ParseMarkForSubmatch, ParseBranch, ParsePiece, ParseConcatenation, ParsePostConcatenation,
+ ParseUnion, ParsePostUnion, ParsePostfix, ParseRestoreCFlags} parse_re_stack_symbol_t;
 
 #if XRE_Debug > 1
 static char *parseSymName[] = {
@@ -1293,8 +1284,8 @@ static int parseAtom(parse_ctx_t *ctx, ast_node_t **pnode) {
 			// extensions.
 			if(ctx->cflags & REG_ENHANCED && ctx->re + 1 < ctx->re_end && ctx->re[1] == CharHook) {
 				char *msg;
-				int flag, new_cflags = ctx->cflags;
-				int bit = 1;
+				uint flag, new_cflags = ctx->cflags;
+				bool bit = true;
 				DPrintf((stderr, "parsePat: extension: '%.*" StrF "'\n", Rest(ctx->re)));
 				ctx->re += 2;
 				for(;;) {
@@ -1327,7 +1318,7 @@ static int parseAtom(parse_ctx_t *ctx, ast_node_t **pnode) {
 						case CharMinus:
 							DPrintf((stderr, "parsePat: turn off: '%.*" StrF "'\n", Rest(ctx->re)));
 							++ctx->re;
-							bit = 0;
+							bit = false;
 							break;
 						case CharColon:
 							DPrintf((stderr, "parsePat: non-capturing: '%.*" StrF "'\n",
@@ -1364,7 +1355,7 @@ static int parseAtom(parse_ctx_t *ctx, ast_node_t **pnode) {
 					}
 EndOpts:
 				// Turn on the cflags changes for the rest of the enclosing group.
-				StackPush(stack, int, ctx->cflags);
+				StackPush(stack, uint, ctx->cflags);
 				StackPush(stack, int, ParseRestoreCFlags);
 				StackPush(stack, int, ParseRE);
 				ctx->cflags = new_cflags;
@@ -1478,8 +1469,11 @@ EndOpts:
 					goto NotNL;
 				case L'x':
 					{long val;
-					if((status = hexchar(ctx, &val)) != 0)
+					bool bracedForm;
+
+					if((status = hexNum(ctx, &val, &bracedForm)) != 0)
 						return status;
+					ctx->pflags |= (bracedForm ? PropHaveRegical : PropHaveEscLit);
 					*pnode = ast_newLit(ctx->mem, val, val, ctx->position);
 					++ctx->position;
 					}
@@ -1501,6 +1495,7 @@ EndOpts:
 EscChar:
 						// Escaped character.
 						DPrintf((stderr, "parsePat: escaped: '%.*" StrF "'\n", Rest(ctx->re - 1)));
+						ctx->pflags |= PropHaveEscLit;
 						*pnode = ast_newLit(ctx->mem, *ctx->re, *ctx->re, ctx->position);
 						}
 					++ctx->position;
@@ -1732,7 +1727,7 @@ int parsePat(parse_ctx_t *ctx) {
 					case CharAsterisk:
 					case CharPlus:
 					case CharHook:
-						{int minimal = (ctx->cflags & REG_UNGREEDY) == REG_UNGREEDY;
+						{bool minimal = (ctx->cflags & REG_UNGREEDY) == REG_UNGREEDY;
 						int rep_min = 0;
 						int rep_max = -1;
 #if XRE_Debug
@@ -1799,7 +1794,7 @@ int parsePat(parse_ctx_t *ctx) {
 				}
 				break;
 			case ParseRestoreCFlags:
-				ctx->cflags = xstack_pop_int(stack);
+				ctx->cflags = xstack_pop_uint(stack);
 				break;
 			default:
 				assert(0);

@@ -1,10 +1,10 @@
-.\" (c) Copyright 2022 Richard W. Marinelli
+.\" (c) Copyright 2025 Richard W. Marinelli
 .\"
 .\" This work is licensed under the GNU General Public License (GPLv3).  To view a copy of this license, see the
 .\" "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
 .\"
 .ad l
-.TH XRE_FORMAT 7 2022-08-18 "Ver. 1.2" "XRE Library Documentation"
+.TH XRE_FORMAT 7 2026-04-19 "Ver. 1.3" "XRE Library Documentation"
 .nh \" Turn off hyphenation.
 .SH NAME
 \fBxre_format\fR - POSIX 1003.1-2017 extended regular expressions for use with the XRE library.
@@ -157,16 +157,16 @@ The "carriage return" character (ASCII code 13).
 The "horizontal tab" character (ASCII code 9).
 .PP
 Literals can also be specified as hexadecimal values, using either of the following forms:
-.IP \e\fBx\fIx...\fR 12
-An arbitrary eight-bit value.  The \fIx...\fR sequence represents one or two hexadecimal digits.  (Note: if
-\fIx...\fR is less than two hexadecimal digits, and the character following this sequence happens to be a
+.IP \e\fBx\fId...\fR 12
+An arbitrary eight-bit value.  The \fId...\fR sequence represents one or two hexadecimal digits.  (Note: if
+\fId...\fR is less than two hexadecimal digits, and the character following this sequence happens to be a
 hexadecimal digit, use the (following) brace form to avoid ambiguity.)
-.IP \e\fBx{\fIx...\fR} 12
-An arbitrary, up to 32-bit value.  The \fIx...\fR sequence is an arbitrary sequence of one or more hexadecimal
+.IP \e\fBx{\fId...\fB}\fR 12
+An arbitrary, up to 32-bit value.  The \fId...\fR sequence is an arbitrary sequence of one or more hexadecimal
 digits that is long enough to represent the necessary value.
 .PP
 Lastly, literals can also be specified directly, using their wide character values.  Note that when matching a
-multibyte character string, the string\(aqs bytes are converted to wide character before comparing.  This means
+multibyte character string, the string\(aqs bytes are converted to a wide character before comparing.  This means
 that a single literal wide character value may match more than one string byte, depending on the locale\(aqs wide
 character encoding.
 .SS Shortcuts

@@ -1,10 +1,10 @@
-.\" (c) Copyright 2022 Richard W. Marinelli
+.\" (c) Copyright 2025 Richard W. Marinelli
 .\"
 .\" This work is licensed under the GNU General Public License (GPLv3).  To view a copy of this license, see the
 .\" "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
 .\"
 .ad l
-.TH XREGEX 3 2022-08-18 "Ver. 1.2" "XRE Library Documentation"
+.TH XREGEX 3 2026-04-19 "Ver. 1.3" "XRE Library Documentation"
 .nh \" Turn off hyphenation.
 .SH NAME
 \fBregcomp\fR, \fBregexec\fR, \fBregerror\fR, \fBregfree\fR,
@@ -17,10 +17,10 @@
 .PP
 \fB#include "regex.h"\fR
 .HP 2
-\fBint regcomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, int \fIcflags\fB);\fR
+\fBint regcomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, uint \fIcflags\fB);\fR
 .HP 2
 \fBint regexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB, size_t \fInmatch\fB, regmatch_t \fIpmatch\fB[],
-int \fIeflags\fB);\fR
+uint \fIeflags\fB);\fR
 .HP 2
 \fBsize_t regerror(int \fIerrcode\fB, const regex_t *\fIpreg\fB, char *\fIerrbuf\fB, size_t \fIerrbuf_size\fB);\fR
 .HP 2
@@ -30,10 +30,10 @@ int \fIeflags\fB);\fR
 .PP
 \fB#include "xre.h"\fR
 .HP 2
-\fBint xregcomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, int \fIcflags\fB);\fR
+\fBint xregcomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, uint \fIcflags\fB);\fR
 .HP 2
 \fBint xregexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB, size_t \fInmatch\fB, regmatch_t \fIpmatch\fB[],
-int \fIeflags\fB);\fR
+uint \fIeflags\fB);\fR
 .HP 2
 \fBsize_t xregerror(int \fIerrcode\fB, const regex_t *\fIpreg\fB, char *\fIerrbuf\fB, size_t \fIerrbuf_size\fB);\fR
 .HP 2
@@ -41,27 +41,25 @@ int \fIeflags\fB);\fR
 .PP
 .B (Non-portable extensions)
 .HP 2
-\fBint xregncomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, size_t \fIlen\fB, int \fIcflags\fB);\fR
+\fBint xregncomp(regex_t *\fIpreg\fB, const char *\fIpat\fB, size_t \fIlen\fB, uint \fIcflags\fB);\fR
 .HP 2
-\fBint xregwcomp(regex_t *\fIpreg\fB, const wchar_t *\fIwpat\fB, int \fIcflags\fB);\fR
+\fBint xregwcomp(regex_t *\fIpreg\fB, const wchar_t *\fIwpat\fB, uint \fIcflags\fB);\fR
 .HP 2
-\fBint xregwncomp(regex_t *\fIpreg\fB, const wchar_t *\fIwpat\fB, size_t \fIlen\fB, int \fIcflags\fB);\fR
+\fBint xregwncomp(regex_t *\fIpreg\fB, const wchar_t *\fIwpat\fB, size_t \fIlen\fB, uint \fIcflags\fB);\fR
 .HP 2
 \fBint xregnexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB, size_t \fIlen\fB, size_t \fInmatch\fB,
-regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
+regmatch_t \fIpmatch\fB[], uint \fIeflags\fB);\fR
 .HP 2
 \fBint xregwexec(const regex_t *\fIpreg\fB, const wchar_t *\fIstring\fB, size_t \fInmatch\fB,
-regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
+regmatch_t \fIpmatch\fB[], uint \fIeflags\fB);\fR
 .HP 2
 \fBint xregwnexec(const regex_t *\fIpreg\fB, const wchar_t *\fIstring\fB, size_t \fIlen\fB, size_t \fInmatch\fB,
-regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
+regmatch_t \fIpmatch\fB[], uint \fIeflags\fB);\fR
 .HP 2
 \fBint xreguexec(const regex_t *\fIpreg\fB, const regusource_t *\fIstring\fB, \fBsize_t \fInmatch\fB,
-regmatch_t \fIpmatch\fB[], int \fIeflags\fB);\fR
+regmatch_t \fIpmatch\fB[], uint \fIeflags\fB);\fR
 .HP 2
 \fBconst char *xregmsg(int \fIerrcode\fB);\fR
-.HP 2
-\fBint xregprop(const regex_t *\fIpreg\fB);\fR
 .SH DESCRIPTION
 These routines process IEEE Std 1003.1-2017 (POSIX) extended regular expressions (EREs) with enhancements, as
 described in xre_format(7).  The preferred routines are those with names beginning with "x".  The ones
@@ -248,7 +246,7 @@ follows:
 typedef struct {
 .RS 5
 .HP 2
-bool (*nextchar)(xint_t *pc, unsigned int *plen, void *context);
+bool (*nextchar)(xint_t *pc, uint *plen, void *context);
 .HP 2
 void (*rewind)(regoff_t pos, void *context);
 .HP 2
@@ -280,7 +278,7 @@ three callback functions so that the state information can be shared and updated
 NULL if it is not being used.
 .SS Pattern Information
 A compiled ERE is saved in a \fBregex_t\fR structure, as noted previously.  In addition to the
-\fIre_nsub\fR member, this structure has the members \fIcflags\fR and \fIpflags\fR, both of type \fBint\fR,
+\fIre_nsub\fR member, this structure has the members \fIcflags\fR and \fIpflags\fR, both of type \fBunsigned int\fR,
 containing respectively the compilation flags and "property" flags.  The \fIpflags\fR member, which provides
 information about the compiled pattern, is the bitwise OR of zero or more of the following flags:
 .sp
@@ -297,9 +295,12 @@ The compiled ERE contains one or more escaped literal characters.
 .RE
 .PD
 .PP
-If the \fBPropHaveRegical\fR flag is not set, the pattern is plain text and could therefore be used with a
-fast-search algorithm such as Boyer-Moore.  However, if the \fBPropHaveEscLit\fR flag is set, the escaped characters
-in the pattern (such as \en and \et) would have to be converted to the actual characters they represent first.
+If the PropHaveRegical flag is not set, the pattern is plain text and could therefore be used with a
+fast-search algorithm such as Boyer-Moore.  However, if the PropHaveEscLit flag is set, the escaped
+characters in the pattern (such as \et and \e\fBx\fId...\fR) would have to be converted to the actual characters
+they represent first.  Note also that unlike pattern \e\fBx\fId...\fR, pattern \e\fBx{\fId...\fB}\fR (braced form)
+is considered to contain regular expression metacharacters and thus, would cause the PropHaveRegical
+flag to be set, but not the PropHaveEscLit flag.
 .SH DIAGNOSTICS
 Non-zero error codes from \fBxregcomp\fR() and \fBxregexec\fR() are as follows:
 .sp

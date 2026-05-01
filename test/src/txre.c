@@ -1,4 +1,4 @@
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is licensed under the GNU General Public License (GPLv3).  To view a copy of this license, see the
 // "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
@@ -20,19 +20,6 @@ typedef struct {
 	regoff_t pos, len;
 	bool multibyte;
 	} ScanInfo;
-
-#if 0
-// Comparison function that ignores case.  Return zero if a match; otherwise, non-zero.
-static int casecmp(const void *s1, const void *s2, regoff_t len) {
-	const char *str1 = s1;
-	const char *str2 = s2;
-
-	while(len-- > 0)
-		if(tolower(*str1++) != tolower(*str2++))
-			return 1;
-	return 0;
-	}
-#endif
 
 // Get next input character -- callback routine for xreguexec().  Set *pc to the value of the next character in string, and set
 // *plen to number of bytes advanced.  Return true if end of string reached; otherwise, false.
@@ -80,59 +67,9 @@ static int cCompare(regoff_t pos1, regoff_t pos2, size_t len, void *context) {
 	return memcmp(pscan->str + pos1, pscan->str + pos2, len);
 	}
 
-// Reverse a byte string in place and return it.
-static void *bsrev(void *str, size_t len) {
-
-	if(len > 1) {
-		short c;
-		char *str1 = (char *) str;
-		char *strEnd = str1 + len;
-		do {
-			c = *str1;
-			*str1++ = *--strEnd;
-			*strEnd = c;
-			} while(strEnd > str1 + 1);
-		}
-	return str;
-	}
-
-// Reverse a multibyte string in place.  Return NULL if successful, otherwise error message.
-static char *mrev(char *str, size_t len) {
-
-	if(len > 1) {
-		mbstate_t mbstate;
-		size_t n;
-		char *strEnd, *str1;
-
-		// First, find and reverse any multibyte sequences within the string.
-		strEnd = (str1 = str) + len;
-		memset(&mbstate, '\0', sizeof(mbstate));
-		do {
-			if((*str1 & 0x80) == 0)
-				goto Incr;
-			if((n = mbrlen(str1, strEnd - str1, &mbstate)) == (size_t) -1 || n == (size_t) -2) {
-				(void) asprintf(&strEnd, "Invalid multibyte character in string (at offset %lu)", str1 - str);
-				return strEnd;
-				}
-			else if(n == 0)
-Incr:
-				++str1;
-			else {
-				bsrev(str1, n);
-				str1 += n;
-				}
-			} while(str1 < strEnd);
-
-		// Now reverse the whole string.
-		bsrev(str, len);
-		}
-
-	return NULL;
-	}
-
 // Convert any "\n", "\t", or "\0" in string to a newline, tab, or null in place and return new length.  If nullOnly is true,
 // convert "\0" only.
-static size_t strconv(char *str, bool nullOnly) {
+static size_t strcvt(char *str, bool nullOnly) {
 	char *s1, *s2;
 
 	s1 = s2 = str;
@@ -150,7 +87,7 @@ static size_t strconv(char *str, bool nullOnly) {
 
 // Parse command-line arguments and process them.  Write results to standard output.
 int main(int argc, char *argv[]) {
-	const char *Version = "1.2.0";
+	const char *Version = "1.3.0";
 	int status, cflags = 0, eflags = 0;
 	char *Myself, *execName;
 	char *pat, *str1, *str2, *locale = NULL;
@@ -276,7 +213,7 @@ Usage:
 	printf("Multibyte enabled: %s\n", trueFalse(context.multibyte));
 
 	// Convert any "\n", "\t", or "\0" in string to a newline, tab, or null.
-	context.len = slen = strconv(str1, false);
+	context.len = slen = strcvt(str1, false);
 
 	// Print string in visible form.
 	fputs("String: '", stdout);
@@ -292,8 +229,8 @@ fputs("'\n", stdout);
 	// Reverse string if REG_REVERSE flag specified.
 	if(cflags & REG_REVERSE) {
 		if(!context.multibyte)
-			bsrev(str1, slen);
-		else if((str2 = mrev(str1, slen)) != NULL) {
+			memrev(str1, slen);
+		else if((str2 = mbrev(str1, slen)) != NULL) {
 			fprintf(stderr, "Error: %s\n", str2);
 			exit(1);
 			}
@@ -307,7 +244,7 @@ fputs("'\n", stdout);
 	// Loop through the patterns.
 	do {
 		// Compile next pattern.
-		plen = strconv(pat = *argv++, true);
+		plen = strcvt(pat = *argv++, true);
 		fputs("----- Pattern: /", stdout);
 		if(plen > 0)
 			fvizstr(pat, plen, stdout, true);

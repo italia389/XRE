@@ -1,10 +1,10 @@
-.\" (c) Copyright 2022 Richard W. Marinelli
+.\" (c) Copyright 2025 Richard W. Marinelli
 .\"
 .\" This work is licensed under the GNU General Public License (GPLv3).  To view a copy of this license, see the
 .\" "License.txt" file included with this distribution or visit http://www.gnu.org/licenses/gpl-3.0.en.html.
 .\"
 .ad l
-.TH XREGAEX 3 2022-08-18 "Ver. 1.2" "XRE Library Documentation"
+.TH XREGAEX 3 2026-04-19 "Ver. 1.3" "XRE Library Documentation"
 .nh \" Turn off hyphenation.
 .SH NAME
 \fBxregaexec\fR, \fBxreganexec\fR, \fBxregawexec\fR, \fBxregawnexec\fR, \fBxregauexec\fR,
@@ -13,19 +13,19 @@
 \fB#include "xre.h"\fR
 .HP 2
 \fBint xregaexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB,
-\fBregamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+\fBregamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, uint \fIeflags\fB);\fR
 .HP 2
 \fBint xreganexec(const regex_t *\fIpreg\fB, const char *\fIstring\fB, size_t \fIlen\fB,
-regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, uint \fIeflags\fB);\fR
 .HP 2
 \fBint xregawexec(const regex_t *\fIpreg\fB, const wchar_t *\fIstring\fB,
-regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, uint \fIeflags\fB);\fR
 .HP 2
 \fBint xregawnexec(const regex_t *\fIpreg\fB, const wchar_t *\fIstring\fB, size_t \fIlen\fB,
-regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, uint \fIeflags\fB);\fR
 .HP 2
 \fBint xregauexec(const regex_t *\fIpreg\fB, const regusource_t *\fIstring\fB,
-regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, int \fIeflags\fB);\fR
+regamatch_t *\fImatch\fB, regaparams_t *\fIparams\fB, uint \fIeflags\fB);\fR
 .HP 2
 \fBvoid xregainit(regaparams_t *\fIparams\fB, int \fIlevel\fB);\fR
 .SH DESCRIPTION

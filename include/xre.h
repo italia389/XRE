@@ -1,6 +1,6 @@
 // xre.h - XRE public API definitions.
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -20,7 +20,7 @@
 #define EnableApprox		1	// Enable approximate matching?
 #define EnableReverse		1	// Enable reversed patterns and backward matching?
 
-#define XRE_Version		"1.2.0"
+#define XRE_Version		"1.3.0"
 
 #if EnableMultibyte && !EnableWChar
 #undef EnableWChar
@@ -38,11 +38,20 @@
 extern "C" {
 #endif
 
+#ifndef stdos_h
+
+// Shortcuts for standard types.
+typedef unsigned char uchar;
+typedef unsigned short ushort;
+typedef unsigned int uint;
+typedef unsigned long ulong;
+#endif
+
 // Since we're not using the system regex.h, we need to define the structures and flags ourselves.
 typedef ssize_t regoff_t;
 typedef struct {
-	int cflags;			// Compilation flags.
-	int pflags;			// Pattern property flags.
+	uint cflags;			// Compilation flags.
+	uint pflags;			// Pattern property flags.
 	size_t re_nsub;			// Number of parenthesized subexpressions.
 	void *re_data;			// For internal use only.
 	} regex_t;
@@ -67,7 +76,9 @@ typedef struct {
 #define REG_ESPACE		12	// Out of memory
 #define REG_BADRPT		13	// Invalid use of repetition operator
 #define REG_EMPTY		14	// Empty (sub)expression
-#define REG_EHEX		15	// Invalid hexadecimal value
+
+// Non-POSIX additions.
+#define REG_EHEX		15	// Invalid hexadecimal number
 #define REG_MAXOFF		16	// Maximum match offset exceeded
 #define REG_STRCHAR		17	// Invalid multibyte character in string
 #define REG_PATCHAR		18	// Invalid multibyte character in pattern
@@ -115,15 +126,15 @@ typedef struct {
 #define RE_DUP_MAX		255
 
 // The POSIX regexp functions.
-extern int xregcomp(regex_t *preg, const char *pat, int cflags);
-extern int xregexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], int eflags);
+extern int xregcomp(regex_t *preg, const char *pat, uint cflags);
+extern int xregexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], uint eflags);
 extern size_t xregerror(int errcode, const regex_t *preg, char *errbuf, size_t errbuf_size);
 extern void xregfree(regex_t *preg);
 
 // Versions with a maximum length argument and therefore the capability to handle null characters in the middle of the strings
 // (not in POSIX).
-extern int xregncomp(regex_t *preg, const char *pat, size_t len, int cflags);
-extern int xregnexec(const regex_t *preg, const char *string, size_t len, size_t nmatch, regmatch_t pmatch[], int eflags);
+extern int xregncomp(regex_t *preg, const char *pat, size_t len, uint cflags);
+extern int xregnexec(const regex_t *preg, const char *string, size_t len, size_t nmatch, regmatch_t pmatch[], uint eflags);
 
 #if EnableWChar
 #if HaveHdr_wchar
@@ -131,10 +142,10 @@ extern int xregnexec(const regex_t *preg, const char *string, size_t len, size_t
 #endif
 
 // Wide character versions (not in POSIX).
-extern int xregwcomp(regex_t *preg, const wchar_t *wpat, int cflags);
-extern int xregwexec(const regex_t *preg, const wchar_t *string, size_t nmatch, regmatch_t pmatch[], int eflags);
-extern int xregwncomp(regex_t *preg, const wchar_t *wpat, size_t len, int cflags);
-extern int xregwnexec(const regex_t *preg, const wchar_t *string, size_t len, size_t nmatch, regmatch_t pmatch[], int eflags);
+extern int xregwcomp(regex_t *preg, const wchar_t *wpat, uint cflags);
+extern int xregwexec(const regex_t *preg, const wchar_t *string, size_t nmatch, regmatch_t pmatch[], uint eflags);
+extern int xregwncomp(regex_t *preg, const wchar_t *wpat, size_t len, uint cflags);
+extern int xregwnexec(const regex_t *preg, const wchar_t *string, size_t len, size_t nmatch, regmatch_t pmatch[], uint eflags);
 
 typedef wchar_t xchar_t;
 typedef wint_t xint_t;
@@ -144,14 +155,14 @@ typedef short xint_t;
 #endif
 
 typedef struct {
-	bool (*nextchar)(xint_t *pc, unsigned int *plen, void *context);
+	bool (*nextchar)(xint_t *pc, uint *plen, void *context);
 	void (*rewind)(regoff_t pos, void *context);
 	int (*compare)(regoff_t pos1, regoff_t pos2, size_t len, void *context);
 	void *context;
 	} regusource_t;
 
 // User data version (not in POSIX).
-extern int xreguexec(const regex_t *preg, const regusource_t *string, size_t nmatch, regmatch_t pmatch[], int eflags);
+extern int xreguexec(const regex_t *preg, const regusource_t *string, size_t nmatch, regmatch_t pmatch[], uint eflags);
 
 // Structure for approximate matching parameters.
 typedef struct {
@@ -186,19 +197,19 @@ typedef struct {
 #define FuzzyParams		{1, 1, 1, INT_MAX, 1, 1, 1, 1}	// Default parameters for "fuzzy" matching.
 
 // Approximate matching functions (not in POSIX).
-extern int xregaexec(const regex_t *preg, const char *string, regamatch_t *match, regaparams_t *params, int eflags);
+extern int xregaexec(const regex_t *preg, const char *string, regamatch_t *match, regaparams_t *params, uint eflags);
 extern int xreganexec(const regex_t *preg, const char *string, size_t len, regamatch_t *match, regaparams_t *params,
- int eflags);
+ uint eflags);
 
 #if EnableWChar
 // Wide character approximate matching (not in POSIX).
-extern int xregawexec(const regex_t *preg, const wchar_t *string, regamatch_t *match, regaparams_t *params, int eflags);
+extern int xregawexec(const regex_t *preg, const wchar_t *string, regamatch_t *match, regaparams_t *params, uint eflags);
 extern int xregawnexec(const regex_t *preg, const wchar_t *string, size_t len, regamatch_t *match, regaparams_t *params,
- int eflags);
+ uint eflags);
 #endif
 
-// User data version (not in POSIXq).
-extern int xregauexec(const regex_t *preg, const regusource_t *string, regamatch_t *match, regaparams_t *params, int eflags);
+// User data version (not in POSIX).
+extern int xregauexec(const regex_t *preg, const regusource_t *string, regamatch_t *match, regaparams_t *params, uint eflags);
 
 // Sets the parameters to default values according to 'type'.
 extern void xregainit(regaparams_t *params, int level);
@@ -213,7 +224,7 @@ extern const char *xregmsg(int errcode);
 #define PropHaveEscLit		0x0008		// Pattern contains escaped literal character(s).
 
 // Returns library configuration flags.
-extern int xlibconf(void);
+extern uint xlibconf(void);
 
 #define ConfigWChar		0x0001
 #define ConfigMultibyte		0x0002

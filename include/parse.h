@@ -1,6 +1,6 @@
 // parse.h - Regular expression parsing definitions, including those for abstract syntax trees (AST).
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -88,9 +88,9 @@ typedef struct {
 	ast_node_t *sub;			// Subexpression to match.
 	int min;				// Minimum number of consecutive matches.
 	int max;				// Maximum number of consecutive matches.
-	char minimal;				// If 0, match as many characters as possible; if 1 match as few as possible.
-						// Note that this does not always mean the same thing as matching as many/few
-						// repetitions as possible.
+	bool minimal;				// If false, match as many characters as possible; if true, match as few as
+						// possible.  Note that this does not always mean the same thing as matching as
+						// many/few repetitions as possible.
 	params_t *params;			// Approximate matching parameters (or NULL).
 	} ast_iter_t;
 
@@ -102,7 +102,7 @@ typedef struct {
 
 extern ast_node_t *ast_newNode(memhdr_t *mem, ast_type_t type, size_t size);
 extern ast_node_t *ast_newLit(memhdr_t *mem, int code_min, int code_max, int position);
-extern ast_node_t *ast_newIter(memhdr_t *mem, ast_node_t *arg, int min, int max, int minimal);
+extern ast_node_t *ast_newIter(memhdr_t *mem, ast_node_t *arg, int min, int max, bool minimal);
 extern ast_node_t *ast_newUnion(memhdr_t *mem, ast_node_t *left, ast_node_t *right);
 extern ast_node_t *ast_newCat(memhdr_t *mem, ast_node_t *left, ast_node_t *right);
 
@@ -122,9 +122,9 @@ typedef struct {
 	int submatch_id;			// Current submatch ID.
 	int position;				// Current position.
 	int max_backref;			// Highest back reference number, or zero if none seen so far.
-	int cflags;				// Compilation flags.
-	int pflags;				// Pattern property flags.
-	int temp_cflags;			// Temporary compilation flags.
+	uint cflags;				// Compilation flags.
+	uint pflags;				// Pattern property flags.
+	uint temp_cflags;			// Temporary compilation flags.
 	int nest_level;				// Parentheses nesting level.
 	bool keepfirst;				// Capture submatch at top level?
 	int cur_max;				// CUR_MAX in use.

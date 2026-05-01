@@ -1,6 +1,6 @@
 // mem.c - XRE memory allocator and stack management.
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -72,7 +72,7 @@ void *memAlloc(memhdr_t *mem, size_t size, bool zero) {
 		}
 
 	// Make sure the next pointer will be aligned.
-	size += AlignBytes(mem->ptr + size, unsigned long);
+	size += AlignBytes(mem->ptr + size, ulong);
 
 	// Allocate from current block.
 	ptr = mem->ptr;
@@ -168,6 +168,14 @@ int xstack_push_int(xstack_t *s, int i) {
 	return xstack_push(s, item);
 	}
 
+// Push an unsigned integer onto given stack and return status.
+int xstack_push_uint(xstack_t *s, uint u) {
+	union xstack_item item;
+
+	item.u = u;
+	return xstack_push(s, item);
+	}
+
 // Pop a void pointer from given stack and return it.  The stack must not be empty.
 void *xstack_pop_voidptr(xstack_t *s) {
 
@@ -178,6 +186,12 @@ void *xstack_pop_voidptr(xstack_t *s) {
 int xstack_pop_int(xstack_t *s) {
 
 	return s->stack[--s->idx].i;
+	}
+
+// Pop an unsigned integer from given stack and return it.  The stack must not be empty.
+uint xstack_pop_uint(xstack_t *s) {
+
+	return s->stack[--s->idx].u;
 	}
 
 #ifdef __cplusplus

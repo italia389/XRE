@@ -1,11 +1,12 @@
 Advanced Installation Instructions for the XRE Library and Additional Software
 
 This distribution includes standard installer packages for the macOS platform
-and Linux platforms (CentOS, Debian, GNU/Linux, Red Hat, Ubuntu, and others).
-If you are installing on one of these platforms, have superuser (root)
-privileges, do not want to install the XRE library in your HOME directory, and
-do not want to customize the installation process, please refer to file
-Install.txt for instructions on using the standard installers.
+and Linux platforms (CentOS, GNU/Linux, Red Hat, Ubuntu, and others).  If you
+are installing on one of these platforms, have superuser (root) privileges (or
+are the owner of the /usr/local directory), do not want to install the XRE
+library in your HOME directory, and do not want to customize the installation
+process, please refer to file Install.txt for instructions on using the standard
+installers.
 
 Library make files for macOS and Linux platforms are included in this
 distribution.  Compilation on other Unix platforms should be possible as well,
@@ -15,8 +16,8 @@ the ReadMe.md file for contact information.)  Note that if you are installing on
 a macOS system, Xcode must already be installed (vers. 7.2.1 or later
 recommended) so that command-line tools are available.
 
-To install the XRE library with optional customizations, perform the following
-steps:
+To build and install the XRE library with optional customizations, perform the
+following steps:
 
  1. Move to the directory that contains this CustomInstall.txt file:
 

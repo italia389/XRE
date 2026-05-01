@@ -1,8 +1,19 @@
 XRE Library RELEASE HISTORY
 
 ----------
-1.2.0	4 Nov 2022
+1.3.0	19 Apr 2026
+ 1. Made several changes to code to make it more logical and readable, including
+    changing type of all "flags" variables from int to unsigned, and changing
+    type of Boolean variables from int to bool.
+ 2. Changed pattern compilation so that the PropHaveEscLit property flag will be
+    set if "\<any-char>" found in non-enhanced mode, or either "\<lit-char>" or
+    "\xd..." (but not "\x{d...}" braced form) found in enhanced mode, contrary
+    to previous behavior.
+ 3. Updated explanation of PropHaveEscLit flag in xregex.3 man page and removed
+    obsolete xregprop() function.
 
+----------
+1.2.0	4 Nov 2022
  1. Expanded analysis and reporting of regular expression properties:
 	- created "cflags" and "pflags" members in regex_t structure which
 	  contain compilation flags and "property" flags, respectively.
@@ -51,7 +62,6 @@ XRE Library RELEASE HISTORY
 
 ----------
 1.1.0	2 Jun 2022
-
  1. Fixed bug where pattern '[^[:blank:]]' (and shortcut '\H') matched a newline
     when REG_NEWLINE flag was set and REG_ANY was not set.
  2. Fixed preprocessor issue where compiling with "#define EnableApprox 0" in
@@ -244,4 +254,4 @@ XRE Library RELEASE HISTORY
 	 - all other API functions whose names began with "tre_" now begin with
 	   "x"; for example, tre_regcomp() is now xregcomp().
  4. The approximate matching syntax specified in an RE pattern has changed
-    slightly (see xre_format(7) man page).
+    slightly (see the xre_format(7) man page).

@@ -1,6 +1,6 @@
 // xreg.c - POSIX ERE-compatible compilation, matching, and error reporting functions plus approximate matching routines.
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -84,7 +84,7 @@ Done:
 	}
 #endif // EnableWChar
 
-int xregncomp(regex_t *preg, const char *pat, size_t len, int cflags) {
+int xregncomp(regex_t *preg, const char *pat, size_t len, uint cflags) {
 	int status;
 #if EnableWChar
 	wchar_t wpat[len + 1];
@@ -97,18 +97,18 @@ int xregncomp(regex_t *preg, const char *pat, size_t len, int cflags) {
 	return status;
 	}
 
-int xregcomp(regex_t *preg, const char *pat, int cflags) {
+int xregcomp(regex_t *preg, const char *pat, uint cflags) {
 
 	return xregncomp(preg, pat, strlen(pat), cflags);
 	}
 
 #if EnableWChar
-int xregwncomp(regex_t *preg, const wchar_t *wpat, size_t len, int cflags) {
+int xregwncomp(regex_t *preg, const wchar_t *wpat, size_t len, uint cflags) {
 
 	return compilePat(preg, wpat, len, cflags);
 	}
 
-int xregwcomp(regex_t *preg, const wchar_t *wpat, int cflags) {
+int xregwcomp(regex_t *preg, const wchar_t *wpat, uint cflags) {
 
 	return compilePat(preg, wpat, wcslen(wpat), cflags);
 	}
@@ -137,7 +137,7 @@ static const char *error_messages[] = {
 	"Out of memory",					// REG_ESPACE
 	"Invalid use of repetition operator",			// REG_BADRPT
 	"Empty (sub)expression",				// REG_EMPTY
-	"Invalid hexadecimal value",				// REG_EHEX
+	"Invalid hexadecimal number",				// REG_EHEX
 	"Maximum match offset exceeded",			// REG_MAXOFF
 	"Invalid multibyte character in string",		// REG_STRCHAR
 	"Invalid multibyte character in pattern",		// REG_PATCHAR
@@ -175,10 +175,10 @@ size_t xregerror(int errcode, const regex_t *preg, char *errbuf, size_t errbuf_s
 // RE matching functions.
 
 // Fills the POSIX regmatch_t array from the TNFA tag and match endpoint values.
-void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnfa, regoff_t *tagpos, regoff_t match_eo) {
+void fillMatch(size_t nmatch, regmatch_t pmatch[], uint cflags, const tnfa_t *tnfa, regoff_t *tagpos, regoff_t match_eo) {
 	submatch_data_t *submatch_data;
 	regmatch_t *pmatchi;
-	unsigned i;
+	uint i;
 	int *parents;
 
 #if XRE_Debug
@@ -269,8 +269,8 @@ void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnf
 	}
 
 // Return library configuration flags.
-int xlibconf(void) {
-	int result = 0;
+uint xlibconf(void) {
+	uint result = 0;
 #if EnableWChar
 	result |= ConfigWChar;
 #endif
@@ -322,7 +322,7 @@ void xregainit(regaparams_t *params, int level) {
 #endif
 
 static int matchExact(const regex_t *preg, const void *string, size_t len, xstr_t type, size_t nmatch, regmatch_t pmatch[],
- int eflags) {
+ uint eflags) {
 	int status;
 	regoff_t eo, *tagpos = NULL;
 	const tnfa_t *tnfa = (const tnfa_t *) preg->re_data;
@@ -374,31 +374,31 @@ static int matchExact(const regex_t *preg, const void *string, size_t len, xstr_
 	return status;
 	}
 
-int xregnexec(const regex_t *preg, const char *string, size_t len, size_t nmatch, regmatch_t pmatch[], int eflags) {
+int xregnexec(const regex_t *preg, const char *string, size_t len, size_t nmatch, regmatch_t pmatch[], uint eflags) {
 
 	return matchExact(preg, string, len, (XRE_MB_CUR_MAX == 1) ? StrByte : StrMBS, nmatch, pmatch, eflags);
 	}
 
-int xregexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], int eflags) {
+int xregexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], uint eflags) {
 
 	return xregnexec(preg, string, strlen(string), nmatch, pmatch, eflags);
 	}
 
 #if EnableWChar
 
-int xregwnexec(const regex_t *preg, const wchar_t *string, size_t len, size_t nmatch, regmatch_t pmatch[], int eflags) {
+int xregwnexec(const regex_t *preg, const wchar_t *string, size_t len, size_t nmatch, regmatch_t pmatch[], uint eflags) {
 
 	return matchExact(preg, string, len, StrWide, nmatch, pmatch, eflags);
 	}
 
-int xregwexec(const regex_t *preg, const wchar_t *string, size_t nmatch, regmatch_t pmatch[], int eflags) {
+int xregwexec(const regex_t *preg, const wchar_t *string, size_t nmatch, regmatch_t pmatch[], uint eflags) {
 
 	return xregwnexec(preg, string, wcslen(string), nmatch, pmatch, eflags);
 	}
 
 #endif // EnableWChar.
 
-int xreguexec(const regex_t *preg, const regusource_t *string, size_t nmatch, regmatch_t pmatch[], int eflags) {
+int xreguexec(const regex_t *preg, const regusource_t *string, size_t nmatch, regmatch_t pmatch[], uint eflags) {
 
 	return matchExact(preg, string, (size_t) -1, StrUser, nmatch, pmatch, eflags);
 	}
@@ -408,7 +408,7 @@ int xreguexec(const regex_t *preg, const regusource_t *string, size_t nmatch, re
 // Wrapper functions for approximate regexp matching.
 
 static int matchApprox(const regex_t *preg, const void *string, size_t len, xstr_t type, regamatch_t *match,
- regaparams_t *params, int eflags) {
+ regaparams_t *params, uint eflags) {
 	int status;
 	regoff_t eo, *tagpos = NULL;
 	const tnfa_t *tnfa = (const tnfa_t *) preg->re_data;
@@ -442,12 +442,12 @@ static int matchApprox(const regex_t *preg, const void *string, size_t len, xstr
 	return status;
 	}
 
-int xreganexec(const regex_t *preg, const char *string, size_t len, regamatch_t *match, regaparams_t *params, int eflags) {
+int xreganexec(const regex_t *preg, const char *string, size_t len, regamatch_t *match, regaparams_t *params, uint eflags) {
 
 	return matchApprox(preg, string, len, (XRE_MB_CUR_MAX == 1) ? StrByte : StrMBS, match, params, eflags);
 	}
 
-int xregaexec(const regex_t *preg, const char *string, regamatch_t *match, regaparams_t *params, int eflags) {
+int xregaexec(const regex_t *preg, const char *string, regamatch_t *match, regaparams_t *params, uint eflags) {
 
 	return xreganexec(preg, string, strlen(string), match, params, eflags);
 	}
@@ -455,19 +455,19 @@ int xregaexec(const regex_t *preg, const char *string, regamatch_t *match, regap
 #if EnableWChar
 
 int xregawnexec(const regex_t *preg, const wchar_t *string, size_t len, regamatch_t *match, regaparams_t *params,
- int eflags) {
+ uint eflags) {
 
 	return matchApprox(preg, string, len, StrWide, match, params, eflags);
 	}
 
-int xregawexec(const regex_t *preg, const wchar_t *string, regamatch_t *match, regaparams_t *params, int eflags) {
+int xregawexec(const regex_t *preg, const wchar_t *string, regamatch_t *match, regaparams_t *params, uint eflags) {
 
 	return xregawnexec(preg, string, wcslen(string), match, params, eflags);
 	}
 
 #endif // EnableWChar.
 
-int xregauexec(const regex_t *preg, const regusource_t *string, regamatch_t *match, regaparams_t *params, int eflags) {
+int xregauexec(const regex_t *preg, const regusource_t *string, regamatch_t *match, regaparams_t *params, uint eflags) {
 
 	return matchApprox(preg, string, (size_t) -1, StrUser, match, params, eflags);
 	}

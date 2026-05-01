@@ -1,6 +1,6 @@
 // mem.h - XRE memory allocator.
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -51,6 +51,7 @@ typedef struct {
 	union xstack_item {
 		void *ptr;
 		int i;
+		uint u;
 		} *stack;
 	} xstack_t;
 
@@ -68,8 +69,10 @@ extern void xstack_free(xstack_t *s);
 extern int xstack_num_objects(xstack_t *s);
 extern int xstack_push_voidptr(xstack_t *s, void *ptr);
 extern int xstack_push_int(xstack_t *s, int i);
+extern int xstack_push_uint(xstack_t *s, uint u);
 extern void *xstack_pop_voidptr(xstack_t *s);
 extern int xstack_pop_int(xstack_t *s);
+extern uint xstack_pop_uint(xstack_t *s);
 
 #ifdef __cplusplus
 	}

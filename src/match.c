@@ -1,6 +1,6 @@
 // match.c - XRE parallel, back-reference, and approximate RE matching engines.
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -37,7 +37,7 @@ typedef struct {
 	regoff_t pos;		// Offset of current character from beginning of string (zero for first character).
 	xint_t prev_c;		// Previous character (or -1 if at beginning).
 	xint_t next_c;		// Current character (or -1 if at end).
-	unsigned next_c_len;	// Length of current character in "input stream units" (usually bytes) if type is
+	uint next_c_len;	// Length of current character in "input stream units" (usually bytes) if type is
 				// StrMBS or StrUser.
 	bool strUserEOF;	// True if reached end of user input stream.
 	const char *strByte;
@@ -166,7 +166,7 @@ static bool betterTags(int num_tags, tag_direction_t *tag_directions, regoff_t *
 // Find active assertion (including a class or negated class list if ExecClassCheck flag set in eflags) and return true if it
 // fails to match at current position, otherwise false.  Note that more than one positional assertion may be set, so all are
 // checked; that is, all must match or 'true' (failure) is returned.
-static bool assertFail(tnfa_transition_t *trans, scan_pos_t *ppos, const tnfa_t *tnfa, int eflags) {
+static bool assertFail(tnfa_transition_t *trans, scan_pos_t *ppos, const tnfa_t *tnfa, uint eflags) {
 	int assertions = trans->assertions;
 
 	// Check line assertions.
@@ -192,8 +192,8 @@ static bool assertFail(tnfa_transition_t *trans, scan_pos_t *ppos, const tnfa_t 
 		}
 
 	// Check word assertions.
-	int wordChBOS = eflags & (tnfa->cflags & REG_REVERSE ? REG_WORDCHEOS : REG_WORDCHBOS);
-	int wordChEOS = eflags & (tnfa->cflags & REG_REVERSE ? REG_WORDCHBOS : REG_WORDCHEOS);
+	uint wordChBOS = eflags & (tnfa->cflags & REG_REVERSE ? REG_WORDCHEOS : REG_WORDCHBOS);
+	uint wordChEOS = eflags & (tnfa->cflags & REG_REVERSE ? REG_WORDCHBOS : REG_WORDCHEOS);
 	bool prevIsWC = (ppos->pos == 0 && tnfa->cflags & REG_ENHANCED && wordChBOS) || IsWordChar(ppos->prev_c);
 	bool nextIsWC = (ppos->next_c == (xint_t) -1 && tnfa->cflags & REG_ENHANCED && wordChEOS) || IsWordChar(ppos->next_c);
 	if(tnfa->cflags & REG_REVERSE) {
@@ -213,7 +213,7 @@ static bool assertFail(tnfa_transition_t *trans, scan_pos_t *ppos, const tnfa_t 
 	// Check classes if requested.
 	if(eflags & ExecClassCheck) {
 		xint_t wc = ppos->prev_c;
-		int icase = tnfa->cflags & REG_ICASE;
+		uint icase = tnfa->cflags & REG_ICASE;
 		if(assertions & AssertCC) {
 			if(icase) {
 				if(!xisctype(xtolower(wc), trans->u.class) && !xisctype(xtoupper(wc), trans->u.class))
@@ -324,7 +324,7 @@ static void printReach(reach_t *reach, int num_tags) {
 	}
 #endif
 
-int runParallel(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, int eflags,
+int runParallel(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, uint eflags,
  regoff_t *match_end_off) {
 
 	// State object required by nextchar() function.
@@ -391,7 +391,7 @@ int runParallel(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type,
 		if((spos.strByte = memchr(origStr, tnfa->first_char, len)) == NULL)
 			goto Retn;	// Not found.
 
-		DPrintf((stderr, "skipped %lu chars\n", (unsigned long)(spos.strByte - origStr)));
+		DPrintf((stderr, "skipped %lu chars\n", (ulong)(spos.strByte - origStr)));
 		if(spos.strByte > origStr)
 			spos.prev_c = (xint_t) spos.strByte[-1];
 		spos.next_c = (xint_t) *spos.strByte;
@@ -686,7 +686,7 @@ static int casecmp(const void *s1, const void *s2, int n, xstr_t type) {
 	}
 #endif
 
-int runBackref(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, int eflags,
+int runBackref(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, uint eflags,
  regoff_t *match_end_off) {
 
 	// State object required by nextchar() function.
@@ -1127,7 +1127,7 @@ static void setParams(approx_reach_t *reach, params_t *transParams, regaparams_t
 // Find first match (or best match if REG_BESTMATCH flag set in eflags) that is within edit and cost constraints, and has the
 // lowest cost.
 int runApprox(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, regamatch_t *match,
- regaparams_t *params, int eflags, regoff_t *match_end_off) {
+ regaparams_t *params, uint eflags, regoff_t *match_end_off) {
 
 	// State object required by nextchar() function.
 	scan_pos_t spos = {type, string, len, -1, (xint_t) -1, (xint_t) -1, 1, false,

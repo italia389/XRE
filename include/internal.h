@@ -1,6 +1,6 @@
 // internal.h - XRE internal definitions.
 //
-// (c) Copyright 2022 Richard W. Marinelli
+// (c) Copyright 2025 Richard W. Marinelli
 //
 // This work is based on TRE ver. 0.7.5 (c) Copyright 2001-2006 Ville Laurikari <vl@iki.fi> and is licensed
 // under the GNU Lesser General Public License (LGPLv3).  To view a copy of this license, see the "License.txt"
@@ -118,8 +118,8 @@ extern xctype_t xctype(const char *name);
 typedef enum {StrByte, StrWide, StrMBS, StrUser} xstr_t;
 
 // Returns number of bytes to add to (char *) ptr to make it properly aligned for the type.
-#define AlignBytes(ptr, type) ((((unsigned long) ptr) % sizeof(type)) ?\
- (sizeof(type) - (((unsigned long) ptr) % sizeof(type))) : 0)
+#define AlignBytes(ptr, type) ((((ulong) ptr) % sizeof(type)) ?\
+ (sizeof(type) - (((ulong) ptr) % sizeof(type))) : 0)
 
 #undef Max
 #undef Min
@@ -187,11 +187,11 @@ typedef struct submatch_data {
 // TNFA definition.
 typedef struct {
 	tnfa_transition_t *transitions;		// Array of transitions.
-	unsigned num_transitions;		// Total number of transitions.
+	uint num_transitions;			// Total number of transitions.
 	tnfa_transition_t *initial;		// NULL-terminated (per initial->state) array of initial transitions.
 	tnfa_transition_t *final;		// Final transition.
 	submatch_data_t *submatch_data;		// Array of objects holding information about each subexpression in RE.
-	unsigned num_submatches;		// Number of subexpressions in RE, including whole RE (>= 1).
+	uint num_submatches;			// Number of subexpressions in RE, including whole RE (>= 1).
 	char *firstpos_chars;
 	int first_char;
 	tag_direction_t *tag_directions;	// Array of tag_direction_t enumerators, using tag_id as index.
@@ -200,7 +200,7 @@ typedef struct {
 	int num_minimals;			// Number of minimal tags.
 	int end_tag;				// End tag ID of whole RE match.
 	int num_states;				// Number of states in the TNFA.
-	int cflags;				// Compilation flags.
+	uint cflags;				// Compilation flags.
 	int params_depth;
 	} tnfa_t;
 
@@ -211,17 +211,17 @@ extern void printParams(bool printLabel, regaparams_t *params);
 #endif
 extern void printTags(char *label, int *tags, int count);
 #endif
-extern int compilePat(regex_t *preg, const xchar_t *regex, size_t len, int cflags);
-extern void fillMatch(size_t nmatch, regmatch_t pmatch[], int cflags, const tnfa_t *tnfa, regoff_t *tagpos, regoff_t match_eo);
+extern int compilePat(regex_t *preg, const xchar_t *regex, size_t len, uint cflags);
+extern void fillMatch(size_t nmatch, regmatch_t pmatch[], uint cflags, const tnfa_t *tnfa, regoff_t *tagpos, regoff_t match_eo);
 extern void refree(regex_t *preg);
-extern int runBackref(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, int eflags,
+extern int runBackref(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, uint eflags,
  regoff_t *match_end_off);
-extern int runParallel(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, int eflags,
+extern int runParallel(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, uint eflags,
  regoff_t *match_end_off);
 
 #if EnableApprox
 extern int runApprox(const tnfa_t *tnfa, const void *string, size_t len, xstr_t type, regoff_t *tagpos, regamatch_t *match,
- regaparams_t *params, int eflags, regoff_t *match_end_off);
+ regaparams_t *params, uint eflags, regoff_t *match_end_off);
 #endif
 
 #ifdef __cplusplus
